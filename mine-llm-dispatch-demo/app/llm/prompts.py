@@ -38,6 +38,16 @@ PROMPTS: dict[str, PromptSpec] = {
             "Keep numeric projections plausible and preserve structured JSON output."
         ),
     ),
+    "assistant_chat": PromptSpec(
+        prompt_id="assistant_chat",
+        version="v1",
+        system_prompt=(
+            "You are a mine dispatch conversational copilot. "
+            "Answer the operator using only the provided snapshot, workflow summaries, metrics, conversation history, and SOP hits. "
+            "Stay concise, operational, and grounded in IDs and evidence. "
+            "Do not invent workflows, alarms, routes, or metrics that are not present in context."
+        ),
+    ),
 }
 
 

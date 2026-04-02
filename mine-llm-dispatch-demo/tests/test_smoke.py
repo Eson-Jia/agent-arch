@@ -99,6 +99,51 @@ def test_smoke_flow(tmp_path, monkeypatch):
     get_settings.cache_clear()
 
 
+def test_assistant_agent_answers_alarm_and_workflow_questions(tmp_path, monkeypatch):
+    _configure_env(tmp_path, monkeypatch, llm_provider="mock")
+
+    with TestClient(create_app()) as client:
+        _seed_demo_state(client)
+        workflow = client.post(
+            "/workflows/incident-response",
+            json={
+                "since_minutes": 10,
+                "operator_role": "dispatcher",
+                "include_diagnose": True,
+                "include_forecast": True,
+            },
+        )
+        assert workflow.status_code == 200
+        workflow_id = workflow.json()["workflow_id"]
+
+        alarm_chat = client.post(
+            "/agents/assistant",
+            json={"query": "当前最高优先级告警是什么？", "since_minutes": 10},
+        )
+        assert alarm_chat.status_code == 200
+        alarm_json = alarm_chat.json()
+        assert alarm_json["intent"] == "alarm_summary"
+        assert "ALM-20260402-000872" in alarm_json["answer"]
+        assert any(item.startswith("STATE-SNP-") for item in alarm_json["evidence"])
+
+        workflow_chat = client.post(
+            "/agents/assistant",
+            json={
+                "query": "当前待审批工作流是什么状态？",
+                "workflow_id": workflow_id,
+                "since_minutes": 10,
+            },
+        )
+        assert workflow_chat.status_code == 200
+        workflow_json = workflow_chat.json()
+        assert workflow_json["intent"] == "workflow_status"
+        assert workflow_json["related_workflows"][0]["workflow_id"] == workflow_id
+        assert workflow_id in workflow_json["answer"]
+        assert workflow_json["suggested_actions"]
+
+    get_settings.cache_clear()
+
+
 def test_anthropic_without_key_falls_back_to_deterministic_path(tmp_path, monkeypatch):
     _configure_env(tmp_path, monkeypatch, llm_provider="anthropic")
 
@@ -295,6 +340,53 @@ def test_ingest_idempotency_and_metrics_capture_duplicates_and_gatekeeper_failur
         assert metrics_json["duplicate_alarm_count"] == 1
         assert metrics_json["gatekeeper_fail_count"] >= 1
         assert metrics_json["gatekeeper_reject_rate"] > 0
+
+    get_settings.cache_clear()
+
+
+def test_assistant_agent_summarizes_metrics(tmp_path, monkeypatch):
+    _configure_env(tmp_path, monkeypatch, llm_provider="mock")
+
+    with TestClient(create_app()) as client:
+        _seed_demo_state(client)
+        client.post("/workflows/incident-response", json={"since_minutes": 10})
+        client.post(
+            "/agents/gatekeeper",
+            json={
+                "proposal": {
+                    "proposal_id": "DSP-TEST-0009",
+                    "generated_by": "manual",
+                    "ts": "2026-04-02T10:20:00+08:00",
+                    "dispatch_cycle_seconds": 60,
+                    "proposals": [
+                        {
+                            "truck_id": "T12",
+                            "next_task": {"load": "L2", "dump": "D2", "route": "R7"},
+                            "constraints_checked": [],
+                            "expected": {"eta_min": 5.0, "queue_wait_min": 1.0},
+                            "risk_notes": [],
+                        }
+                    ],
+                    "expected_impact": {
+                        "throughput_delta_pct": 0.0,
+                        "empty_distance_delta_pct": 0.0,
+                        "queue_time_delta_pct": 0.0,
+                    },
+                    "requires_human_confirmation": True,
+                    "evidence": [],
+                },
+                "operator_role": "dispatcher",
+            },
+        )
+        assistant = client.post(
+            "/agents/assistant",
+            json={"query": "当前质量指标和回退情况怎么样？", "since_minutes": 10},
+        )
+        assert assistant.status_code == 200
+        assistant_json = assistant.json()
+        assert assistant_json["intent"] == "metrics_summary"
+        assert "LLM 回退率" in assistant_json["answer"]
+        assert assistant_json["follow_up_questions"]
 
     get_settings.cache_clear()
 

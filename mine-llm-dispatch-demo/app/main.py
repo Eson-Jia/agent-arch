@@ -10,6 +10,7 @@ from app.agents.dispatch_agent import DispatchAgent
 from app.agents.forecast_agent import ForecastAgent
 from app.agents.gatekeeper_agent import GatekeeperAgent
 from app.agents.triage_agent import TriageAgent
+from app.agents.assistant_agent import AssistantAgent
 from app.embeddings.providers import build_embedding_provider
 from app.execution.adapter import MockExecutionAdapter
 from app.llm.client import LLMClient, build_llm_client
@@ -17,6 +18,7 @@ from app.models.alarm import SafetyAlarmEvent
 from app.models.audit import AuditEvent
 from app.models.execution import AuditReplayRequest, ExecutionRequest
 from app.models.proposal import (
+    AssistantChatRequest,
     DiagnoseRequest,
     DispatchProposal,
     DispatchRequest,
@@ -54,6 +56,7 @@ class AppServices:
     llm_client: LLMClient
     rule_engine: RuleEngine
     triage_agent: TriageAgent
+    assistant_agent: AssistantAgent
     dispatch_agent: DispatchAgent
     gatekeeper_agent: GatekeeperAgent
     diagnose_agent: DiagnoseAgent
@@ -82,6 +85,14 @@ def build_services(settings: Settings) -> AppServices:
     rule_engine = RuleEngine(settings.resolve_path(settings.rules_path))
     solver = DispatchSolver(rule_engine)
     triage_agent = TriageAgent(state_store, audit_store, vector_store, llm_client, settings.timezone)
+    assistant_agent = AssistantAgent(
+        state_store,
+        audit_store,
+        vector_store,
+        llm_client,
+        settings.timezone,
+        workflow_store=workflow_store,
+    )
     dispatch_agent = DispatchAgent(state_store, audit_store, vector_store, llm_client, settings.timezone, solver=solver)
     gatekeeper_agent = GatekeeperAgent(state_store, audit_store, vector_store, llm_client, settings.timezone, rule_engine=rule_engine)
     diagnose_agent = DiagnoseAgent(state_store, audit_store, vector_store, llm_client, settings.timezone)
@@ -114,6 +125,7 @@ def build_services(settings: Settings) -> AppServices:
         llm_client=llm_client,
         rule_engine=rule_engine,
         triage_agent=triage_agent,
+        assistant_agent=assistant_agent,
         dispatch_agent=dispatch_agent,
         gatekeeper_agent=gatekeeper_agent,
         diagnose_agent=diagnose_agent,
@@ -210,6 +222,14 @@ def create_app() -> FastAPI:
     ):
         body = request_body or TriageRequest()
         return services.triage_agent.run(body.model_dump())
+
+    @app.post("/agents/assistant")
+    def run_assistant(
+        services: AppServices = Depends(get_services),
+        request_body: AssistantChatRequest | None = Body(default=None),
+    ):
+        body = request_body or AssistantChatRequest()
+        return services.assistant_agent.run(body.model_dump(mode="json"))
 
     @app.post("/agents/dispatch", response_model=DispatchProposal)
     def run_dispatch(

@@ -116,6 +116,50 @@ class ForecastResponse(BaseModel):
     evidence: list[str] = Field(default_factory=list)
 
 
+WorkflowApprovalStatus = Literal["PENDING_APPROVAL", "APPROVED", "REJECTED", "FAILED_GATEKEEPER"]
+
+
+class ConversationMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class WorkflowBrief(BaseModel):
+    workflow_id: str
+    incident_id: str
+    approval_status: WorkflowApprovalStatus
+    final_status: Literal["PASS", "FAIL"]
+    proposal_revision: int
+
+
+AssistantIntent = Literal[
+    "alarm_summary",
+    "workflow_status",
+    "dispatch_guidance",
+    "metrics_summary",
+    "general_support",
+]
+
+
+class AssistantChatRequest(BaseModel):
+    query: str = ""
+    history: list[ConversationMessage] = Field(default_factory=list)
+    workflow_id: str | None = None
+    since_minutes: int = 30
+    workflow_limit: int = 5
+
+
+class AssistantChatResponse(BaseModel):
+    ts: datetime
+    intent: AssistantIntent
+    answer: str
+    suggested_actions: list[str] = Field(default_factory=list)
+    follow_up_questions: list[str] = Field(default_factory=list)
+    related_workflows: list[WorkflowBrief] = Field(default_factory=list)
+    confidence: float = Field(ge=0, le=1)
+    evidence: list[str] = Field(default_factory=list)
+
+
 class DispatchRequest(BaseModel):
     plan: dict[str, Any] = Field(default_factory=dict)
     operator_intent: str = "保障安全、降低空驶并控制调度频率"
@@ -136,9 +180,6 @@ class TriageRequest(BaseModel):
 
 class DiagnoseRequest(BaseModel):
     focus: str = "current_shift"
-
-
-WorkflowApprovalStatus = Literal["PENDING_APPROVAL", "APPROVED", "REJECTED", "FAILED_GATEKEEPER"]
 
 
 class IncidentWorkflowRequest(BaseModel):

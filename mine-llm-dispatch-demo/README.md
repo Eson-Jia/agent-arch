@@ -3,6 +3,7 @@
 一个可本地运行的矿山自动驾驶调度室多 Agent MVP。当前实现采用 `FastAPI + OR-Tools + ChromaDB + 可切换 LLM Provider`，演示六类能力：
 
 - 遥测与告警接入
+- 面向调度员的对话助手问答
 - 告警分诊
 - 调度建议（建议态，不直接控车）
 - 安全守门校验
@@ -184,6 +185,7 @@ ANTHROPIC_BASE_URL=
 - `GET /audit/events`
 - `GET /metrics/summary`
 - `GET /executions`
+- `POST /agents/assistant`
 - `POST /agents/triage`
 - `POST /agents/dispatch`
 - `POST /agents/gatekeeper`
