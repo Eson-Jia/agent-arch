@@ -9,6 +9,7 @@ from app.settings import get_settings
 def test_smoke_script_exists():
     project_root = Path(__file__).resolve().parents[1]
     assert (project_root / "scripts" / "smoke_test.py").exists()
+    assert (project_root / "app" / "static" / "index.html").exists()
 
 
 def _configure_env(tmp_path, monkeypatch, llm_provider: str = "mock"):
@@ -140,6 +141,35 @@ def test_assistant_agent_answers_alarm_and_workflow_questions(tmp_path, monkeypa
         assert workflow_json["related_workflows"][0]["workflow_id"] == workflow_id
         assert workflow_id in workflow_json["answer"]
         assert workflow_json["suggested_actions"]
+
+    get_settings.cache_clear()
+
+
+def test_ui_console_and_workflow_list_endpoint(tmp_path, monkeypatch):
+    _configure_env(tmp_path, monkeypatch, llm_provider="mock")
+
+    with TestClient(create_app()) as client:
+        ui = client.get("/ui")
+        assert ui.status_code == 200
+        assert "调度室助手控制台" in ui.text
+
+        _seed_demo_state(client)
+        workflow = client.post(
+            "/workflows/incident-response",
+            json={
+                "since_minutes": 10,
+                "operator_role": "dispatcher",
+                "include_diagnose": False,
+                "include_forecast": False,
+            },
+        )
+        assert workflow.status_code == 200
+        workflow_id = workflow.json()["workflow_id"]
+
+        workflows = client.get("/workflows")
+        assert workflows.status_code == 200
+        workflow_ids = [item["workflow_id"] for item in workflows.json()]
+        assert workflow_id in workflow_ids
 
     get_settings.cache_clear()
 

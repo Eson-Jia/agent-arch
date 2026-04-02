@@ -24,6 +24,7 @@ mine-llm-dispatch-demo/
 │   ├── rag/            # 知识库入库与检索
 │   ├── replay/         # 审计回放与重演
 │   ├── rules/          # 确定性规则守门
+│   ├── static/         # 浏览器交互页与静态资源
 │   ├── storage/        # state / audit / vector store
 │   └── workflows/      # 多 Agent 编排入口
 ├── docs/
@@ -121,13 +122,19 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 http://127.0.0.1:8000/docs
 ```
 
-5. 可选：注入演示数据
+5. 打开浏览器交互页：
+
+```text
+http://127.0.0.1:8000/ui
+```
+
+6. 可选：注入演示数据
 
 ```bash
 uv run python scripts/seed_demo_data.py
 ```
 
-6. 一次性执行完整冒烟脚本：
+7. 一次性执行完整冒烟脚本：
 
 ```bash
 uv run python scripts/smoke_test.py
@@ -179,12 +186,14 @@ ANTHROPIC_BASE_URL=
 
 ## 主要 API
 
+- `GET /ui`
 - `POST /ingest/telemetry`
 - `POST /ingest/alarm`
 - `GET /state/snapshot`
 - `GET /audit/events`
 - `GET /metrics/summary`
 - `GET /executions`
+- `GET /workflows`
 - `POST /agents/assistant`
 - `POST /agents/triage`
 - `POST /agents/dispatch`
@@ -197,6 +206,22 @@ ANTHROPIC_BASE_URL=
 - `POST /workflows/{workflow_id}/resubmit`
 - `POST /workflows/{workflow_id}/execute`
 - `POST /replay/audit`
+
+## 浏览器交互页
+
+服务启动后，可直接访问 `http://127.0.0.1:8000/ui`。页面内提供三块能力：
+
+- 对话助手：调用 `POST /agents/assistant`，客户端自动维护多轮 `history`
+- 最近工作流：调用 `GET /workflows`，点击即可将某个 `workflow_id` 设为当前上下文
+- 态势与指标：调用 `GET /state/snapshot` 与 `GET /metrics/summary`
+
+推荐操作顺序：
+
+1. 如需演示真实链路，先执行 `uv run python scripts/seed_demo_data.py`
+2. 打开 `/ui` 后点击“生成事件响应工作流”
+3. 在聊天框问“这个工作流现在是什么状态？”或“为什么还不能执行？”
+
+如果只是开发联调，也可以继续使用 `/docs` 或 `curl` 直接调用 API。
 
 ## Smoke Test
 

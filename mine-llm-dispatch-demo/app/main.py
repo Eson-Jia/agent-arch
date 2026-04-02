@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from fastapi import Body, Depends, FastAPI, Request
 from fastapi import HTTPException
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.agents.diagnose_agent import DiagnoseAgent
 from app.agents.dispatch_agent import DispatchAgent
@@ -149,15 +152,25 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    static_dir = Path(__file__).resolve().parent / "static"
     app = FastAPI(
         title="Mine LLM Dispatch Demo",
         version="0.1.0",
         description="FastAPI MVP for mine dispatch room multi-agent orchestration.",
         lifespan=lifespan,
     )
+    app.mount("/ui/static", StaticFiles(directory=static_dir), name="ui-static")
 
     def get_services(request: Request) -> AppServices:
         return request.app.state.services
+
+    @app.get("/", include_in_schema=False)
+    def index() -> RedirectResponse:
+        return RedirectResponse(url="/ui")
+
+    @app.get("/ui", include_in_schema=False)
+    def ui_console() -> FileResponse:
+        return FileResponse(static_dir / "index.html")
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -214,6 +227,10 @@ def create_app() -> FastAPI:
     @app.get("/executions")
     def get_executions(services: AppServices = Depends(get_services), limit: int = 100) -> list[dict]:
         return services.execution_store.list_records(limit=limit)
+
+    @app.get("/workflows")
+    def list_workflows(services: AppServices = Depends(get_services), limit: int = 20) -> list[dict]:
+        return [record.model_dump(mode="json") for record in services.workflow_store.list_records(limit=limit)]
 
     @app.post("/agents/triage")
     def run_triage(

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mine Dispatch Copilot Console</title>
+    <link rel="stylesheet" href="/ui/static/app.css" />
+    <script src="/ui/static/app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero-panel panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Mine Dispatch Copilot</p>
+          <h1>调度室助手控制台</h1>
+          <p class="hero-text">
+            在同一页面查看矿区态势、工作流状态，并与助手进行一来一回的运维问答。
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="refresh-dashboard" class="btn btn-ghost" type="button">刷新态势</button>
+          <button id="run-workflow" class="btn btn-primary" type="button">生成事件响应工作流</button>
+          <a class="btn btn-link" href="/docs" target="_blank" rel="noreferrer">OpenAPI</a>
+        </div>
+      </header>
+
+      <main class="console-grid">
+        <section class="panel info-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Realtime Snapshot</p>
+              <h2>当前态势</h2>
+            </div>
+            <span id="snapshot-badge" class="badge">未加载</span>
+          </div>
+          <div id="snapshot-cards" class="stat-grid"></div>
+          <div class="subpanel">
+            <div class="subpanel-head">
+              <h3>质量与治理指标</h3>
+              <button id="refresh-metrics" class="btn btn-inline" type="button">刷新</button>
+            </div>
+            <div id="metrics-cards" class="metric-list"></div>
+          </div>
+        </section>
+
+        <section class="panel workflow-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Workflow Context</p>
+              <h2>最近工作流</h2>
+            </div>
+            <label class="field">
+              <span>最近分钟</span>
+              <input id="since-minutes" type="number" min="1" step="1" value="10" />
+            </label>
+          </div>
+          <div class="selection-row">
+            <label class="field workflow-id-field">
+              <span>选中工作流</span>
+              <input id="workflow-id" type="text" placeholder="WFL-..." />
+            </label>
+            <button id="clear-workflow" class="btn btn-ghost" type="button">清空上下文</button>
+          </div>
+          <div id="workflow-list" class="workflow-list"></div>
+          <div id="workflow-empty" class="empty-state">
+            还没有工作流记录。你可以先点击“生成事件响应工作流”，再围绕该 workflow 与助手对话。
+          </div>
+        </section>
+
+        <section class="panel chat-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Assistant Chat</p>
+              <h2>对话助手</h2>
+            </div>
+            <span id="chat-context" class="badge badge-accent">无工作流上下文</span>
+          </div>
+          <div class="prompt-bar">
+            <button class="prompt-chip" type="button" data-prompt="当前最高优先级告警是什么？">最高优先级告警</button>
+            <button class="prompt-chip" type="button" data-prompt="当前质量指标和回退情况怎么样？">质量指标</button>
+            <button class="prompt-chip" type="button" data-prompt="这个工作流现在能不能执行？">能否执行</button>
+            <button class="prompt-chip" type="button" data-prompt="为什么还不能执行？">阻塞原因</button>
+          </div>
+          <div id="chat-feed" class="chat-feed" aria-live="polite"></div>
+          <div class="chat-footer">
+            <form id="chat-form" class="chat-form">
+              <label class="sr-only" for="chat-input">输入问题</label>
+              <textarea
+                id="chat-input"
+                rows="3"
+                placeholder="例如：当前待审批工作流是什么状态？"
+              ></textarea>
+              <div class="chat-form-actions">
+                <p class="helper-text">助手会自动携带当前聊天历史，并可结合选中的 workflow 上下文回答。</p>
+                <button id="send-chat" class="btn btn-primary" type="submit">发送问题</button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+  </body>
+</html>
