@@ -1,6 +1,6 @@
 # Mine LLM Dispatch Demo
 
-一个可本地运行的矿山自动驾驶调度室多 Agent MVP。当前实现采用 `FastAPI + OR-Tools + ChromaDB + 可切换 LLM Provider`，演示六类能力：
+一个可本地运行的矿山自动驾驶调度室多 Agent MVP。当前实现采用 `FastAPI + OR-Tools + Milvus + 可切换 LLM Provider`，演示六类能力：
 
 - 遥测与告警接入
 - 面向调度员的对话助手问答
@@ -53,7 +53,7 @@ mine-llm-dispatch-demo/
 ```text
 HTTP API (FastAPI)
   -> IncidentResponseOrchestrator / Agent APIs
-  -> StateStore(versioned) / AuditStore / VectorStore(ChromaDB)
+  -> StateStore(versioned) / AuditStore / VectorStore(Milvus)
   -> Agent Layer
      -> Triage / Diagnose / Forecast
         -> RAG 检索
@@ -69,7 +69,7 @@ HTTP API (FastAPI)
 ### 运行分层
 
 - `API 层`：`app/main.py` 负责 FastAPI 路由、依赖装配、知识库启动入库和服务生命周期管理。
-- `状态层`：`StateStore` 保存最近态势、车辆遥测和告警；`AuditStore` 记录每次 Agent 输出；`VectorStore` 用 ChromaDB 持久化知识库检索。
+- `状态层`：`StateStore` 保存最近态势、车辆遥测和告警；`AuditStore` 记录每次 Agent 输出；`VectorStore` 用 Milvus 持久化知识库检索。
 - `编排层`：`IncidentResponseOrchestrator` 提供 `/workflows/incident-response`，把分诊、调度和守门串成统一工作流，并固定到同一 `snapshot_version`。
 - `决策层`：`dispatch_agent` 走 OR-Tools 可行解，`gatekeeper_agent` 只做规则硬校验，`triage/diagnose/forecast` 允许用 LLM 做解释增强。
 - `模型层`：`app/llm/client.py` 统一封装 provider；当前支持 `mock` 和 `anthropic`，并带 prompt 注册表、失败阈值和熔断冷却时间。
@@ -146,7 +146,10 @@ uv run python scripts/smoke_test.py
 
 ```env
 APP_ENV=dev
-VECTOR_STORE=chroma
+VECTOR_STORE=milvus
+VECTOR_STORE_PATH=data/vector/milvus
+MILVUS_URI=
+MILVUS_TOKEN=
 STATE_STORE_PATH=data/state/state_store.json
 WORKFLOW_STORE_PATH=data/state/workflows.json
 EXECUTION_LOG_PATH=data/execution/commands.jsonl
@@ -159,10 +162,12 @@ AUDIT_LOG_PATH=data/audit/audit.jsonl
 说明：
 
 - 当前 MVP 使用 `mock` 推理模板，不依赖外部 LLM 即可运行。
+- 默认向量库已切到 `Milvus Lite` 本地文件模式，不要求单独部署 Milvus 服务。
 - 支持将 `LLM_PROVIDER` 切到 `anthropic`，用 Claude Opus 原生 API 做分诊、诊断和预测增强。
 - 支持将 `EMBEDDING_PROVIDER` 切到 `http`，接兼容 `POST /embeddings` 的第三方 embedding 服务。
 - 所有密钥都通过环境变量传入，代码和日志不会写死密钥。
 - 原始视频、个人定位等敏感数据不进入知识库，只保留结构化事件引用。
+- 如果你已有远端 Milvus，可设置 `MILVUS_URI` 和可选的 `MILVUS_TOKEN`，应用会直接连接远端实例。
 
 ## 切换到 Claude Opus
 

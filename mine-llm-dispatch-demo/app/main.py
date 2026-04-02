@@ -82,6 +82,8 @@ def build_services(settings: Settings) -> AppServices:
     vector_store = VectorStore(
         settings.resolve_path(settings.vector_store_path),
         embedding_provider=build_embedding_provider(settings),
+        uri=settings.milvus_uri,
+        token=settings.milvus_token,
     )
     workflow_store = WorkflowStore(settings.resolve_path(settings.workflow_store_path), timezone_name=settings.timezone)
     llm_client = build_llm_client(settings)

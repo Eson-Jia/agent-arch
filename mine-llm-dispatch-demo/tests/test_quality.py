@@ -3,6 +3,7 @@ from pathlib import Path
 from app.embeddings.providers import HttpEmbeddingProvider, HashEmbeddingProvider
 from app.eval.offline_quality import run_offline_evaluation
 from app.llm.client import LLMClient
+from app.storage.vector_store import VectorStore
 
 
 class _FailingMessages:
@@ -57,3 +58,28 @@ def test_offline_evaluation_cases_pass():
     assert result["case_count"] == 2
     assert result["pass_count"] == 2
     assert result["blocked_route_avoidance_rate"] == 1.0
+
+
+def test_milvus_vector_store_upsert_and_search(tmp_path):
+    store = VectorStore(tmp_path / "vector", embedding_provider=HashEmbeddingProvider(dims=8))
+    store.reset()
+    store.upsert_documents(
+        [
+            {
+                "id": "DOC-road_rule#chunk-0",
+                "text": "R7 road obstacle requires reroute to R9 and R11.",
+                "metadata": {"doc_name": "road_rule.md", "chunk_index": 0},
+            },
+            {
+                "id": "DOC-maintenance#chunk-0",
+                "text": "Maintenance SOP for battery cooling and thermal inspection.",
+                "metadata": {"doc_name": "maintenance.md", "chunk_index": 0},
+            },
+        ]
+    )
+
+    hits = store.search("road obstacle reroute", k=2)
+
+    assert hits
+    assert hits[0].doc_id == "DOC-road_rule#chunk-0"
+    assert hits[0].metadata["doc_name"] == "road_rule.md"

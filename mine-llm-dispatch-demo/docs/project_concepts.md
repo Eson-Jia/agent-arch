@@ -108,7 +108,7 @@ HTTP 请求
 ### 理解要点
 
 - `StateStore` 是内存态，面向实时决策。
-- `VectorStore` 是 ChromaDB 持久化索引，面向 SOP 检索。
+- `VectorStore` 是 Milvus 持久化索引，面向 SOP 检索。
 - `AuditStore` 是 JSONL 事件流，面向追溯和回放。
 
 ## 5. 确定性核心与 LLM 增强边界
@@ -201,14 +201,14 @@ LLM 在这里不是直接返回自由文本，而是必须返回能通过 Pydant
 ### 理解要点
 
 - 启动时会把 `docs/knowledge_base/*.md` 切块入库。
-- 当前向量化是 `MockEmbedding`，目标是本地可跑，不依赖外部 embedding 服务。
+- 当前向量化是本地哈希 embedding，目标是本地可跑，不依赖外部 embedding 服务。
 - 检索结果不仅给 LLM 看，也会作为 `evidence` 留在响应和审计里。
 
 ## 9. 向量库与本地 Embedding
 
 ### 概念
 
-当前向量库是 ChromaDB，但 embedding 不是外部模型，而是本地 `MockEmbedding`。
+当前向量库是 Milvus，但 embedding 不是外部模型，而是本地哈希 embedding。
 
 ### 为什么重要
 
@@ -220,8 +220,8 @@ LLM 在这里不是直接返回自由文本，而是必须返回能通过 Pydant
 
 ### 理解要点
 
-- `VectorStore` 通过 `chromadb.PersistentClient` 持久化到本地目录。
-- `MockEmbedding` 用哈希生成固定维度向量，目的是“足够演示”。
+- `VectorStore` 默认通过 `Milvus Lite` 本地文件模式持久化到磁盘，也可切远端 Milvus。
+- `HashEmbeddingProvider` 用哈希生成固定维度向量，目的是“足够演示”。
 - 真正接生产时，通常会把这里替换成真实 embedding provider，但检索接口可以基本不变。
 
 ## 10. 规则引擎
