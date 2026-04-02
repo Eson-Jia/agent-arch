@@ -30,6 +30,10 @@ mine-llm-dispatch-demo/
 └── README.md
 ```
 
+补充阅读：
+
+- `docs/project_concepts.md`：面向工程理解的概念说明，解释状态快照、RAG、求解器、规则引擎、LLM 边界和审计设计。
+
 ## 最新架构
 
 当前代码不是最初的纯 mock MVP，而是已经落成下面这条运行架构：
