@@ -1,25 +1,76 @@
 # Mine LLM Dispatch Demo
 
-一个可本地运行的矿山自动驾驶调度室多 Agent MVP。它用 `FastAPI + OR-Tools + ChromaDB` 演示五类能力：
+一个可本地运行的矿山自动驾驶调度室多 Agent MVP。当前实现采用 `FastAPI + OR-Tools + ChromaDB + 可切换 LLM Provider`，演示六类能力：
 
 - 遥测与告警接入
 - 告警分诊
 - 调度建议（建议态，不直接控车）
 - 安全守门校验
 - 异常诊断、趋势预测与审计留痕
+- Anthropic Claude Opus / mock 双模式推理
 
 ## 项目结构
 
 ```text
 mine-llm-dispatch-demo/
 ├── app/
+│   ├── agents/         # 多 Agent 逻辑
+│   ├── llm/            # mock / anthropic provider 抽象
+│   ├── optim/          # OR-Tools 调度求解
+│   ├── rag/            # 知识库入库与检索
+│   ├── rules/          # 确定性规则守门
+│   └── storage/        # state / audit / vector store
 ├── docs/knowledge_base/
 ├── scripts/
+│   ├── seed_demo_data.py
+│   └── smoke_test.py
 ├── tests/
 ├── .env.example
 ├── pyproject.toml
 └── README.md
 ```
+
+## 最新架构
+
+当前代码不是最初的纯 mock MVP，而是已经落成下面这条运行架构：
+
+```text
+HTTP API (FastAPI)
+  -> StateStore / AuditStore / VectorStore(ChromaDB)
+  -> Agent Layer
+     -> Triage / Diagnose / Forecast
+        -> RAG 检索
+        -> LLM Client (mock 或 anthropic)
+        -> Pydantic 结构化校验
+     -> Dispatch
+        -> OR-Tools 求解器
+     -> Gatekeeper
+        -> RuleEngine 硬校验
+  -> Audit JSONL
+```
+
+### 运行分层
+
+- `API 层`：`app/main.py` 负责 FastAPI 路由、依赖装配、知识库启动入库和服务生命周期管理。
+- `状态层`：`StateStore` 保存最近态势、车辆遥测和告警；`AuditStore` 记录每次 Agent 输出；`VectorStore` 用 ChromaDB 持久化知识库检索。
+- `决策层`：`dispatch_agent` 走 OR-Tools 可行解，`gatekeeper_agent` 只做规则硬校验，`triage/diagnose/forecast` 允许用 LLM 做解释增强。
+- `模型层`：`app/llm/client.py` 统一封装 provider；当前支持 `mock` 和 `anthropic`。
+- `回退层`：真实 LLM 不可用、网关报错或返回 JSON 不合法时，自动回退到本地确定性逻辑，不影响接口可用性。
+
+### Agent 边界
+
+- `triage`：先做告警去重、RAG 检索和本地草稿生成，再可选调用 Claude 优化工单与动作建议。
+- `diagnose`：先基于遥测、告警和规则构造 RCA 假设树，再可选调用 Claude 优化诊断表述。
+- `forecast`：先由本地启发式给出 30/60 分钟预测，再可选调用 Claude 做结构化润色。
+- `dispatch`：始终由 OR-Tools 给出任务分配，不把可行性判断交给 LLM。
+- `gatekeeper`：始终由规则引擎执行禁行、封路、权限等 hard-check。
+
+### LLM Provider 架构
+
+- `LLM_PROVIDER=mock`：完全离线运行，用于本地演示、测试和无外部依赖场景。
+- `LLM_PROVIDER=anthropic`：通过 Anthropic SDK 调 `messages.create`，支持官方 Anthropic 端点，也支持通过 `ANTHROPIC_BASE_URL` 接入兼容的三方供应商网关。
+- `凭证解析顺序`：`ANTHROPIC_API_KEY -> ANTHROPIC_AUTH_TOKEN -> LLM_API_KEY`。
+- `安全策略`：`.env` 已加入 `.gitignore`，密钥只通过环境变量读取，不写入代码和审计日志。
 
 ## 运行要求
 
