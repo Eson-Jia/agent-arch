@@ -136,3 +136,57 @@ class TriageRequest(BaseModel):
 
 class DiagnoseRequest(BaseModel):
     focus: str = "current_shift"
+
+
+WorkflowApprovalStatus = Literal["PENDING_APPROVAL", "APPROVED", "REJECTED", "FAILED_GATEKEEPER"]
+
+
+class IncidentWorkflowRequest(BaseModel):
+    since_minutes: int = 10
+    operator_role: str = "dispatcher"
+    include_diagnose: bool = False
+    include_forecast: bool = False
+
+
+class WorkflowApprovalRecord(BaseModel):
+    approval_id: str
+    action: Literal["SUBMIT", "APPROVE", "REJECT"]
+    actor: str
+    ts: datetime
+    comment: str = ""
+    proposal_revision: int
+
+
+class WorkflowApprovalRequest(BaseModel):
+    action: Literal["APPROVE", "REJECT"]
+    actor: str
+    comment: str = ""
+    expected_proposal_revision: int | None = None
+
+
+class WorkflowResubmitRequest(BaseModel):
+    since_minutes: int = 10
+    operator_role: str = "dispatcher"
+    include_diagnose: bool = False
+    include_forecast: bool = False
+    actor: str = "dispatcher"
+    comment: str = ""
+
+
+class IncidentWorkflowResponse(BaseModel):
+    workflow_id: str
+    incident_id: str
+    snapshot_id: str
+    snapshot_version: int
+    final_status: Literal["PASS", "FAIL"]
+    approval_id: str | None = None
+    approval_status: WorkflowApprovalStatus
+    proposal_revision: int = 1
+    requires_human_confirmation: bool = True
+    triage: TriageResponse
+    dispatch: DispatchProposal
+    gatekeeper: GatekeeperResponse
+    diagnose: DiagnoseResponse | None = None
+    forecast: ForecastResponse | None = None
+    approval_history: list[WorkflowApprovalRecord] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)

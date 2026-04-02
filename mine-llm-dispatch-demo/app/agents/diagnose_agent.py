@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.agents.base import BaseAgent
+from app.llm.prompts import get_prompt
 from app.models.proposal import DiagnoseResponse, RcaHypothesis
 from app.utils.time import now_ts
 
@@ -11,7 +12,7 @@ class DiagnoseAgent(BaseAgent):
     agent_name = "diagnose_agent_v1"
 
     def run(self, input_data: dict[str, Any] | None = None) -> DiagnoseResponse:
-        snapshot = self._snapshot()
+        snapshot = self._resolve_snapshot(input_data)
         _doc_hits, doc_evidence = self._retrieve("异常 诊断 通信 地图 预警 回退")
         hypotheses: list[RcaHypothesis] = []
         evidence: list[str] = []
@@ -73,13 +74,10 @@ class DiagnoseAgent(BaseAgent):
             confidence=0.78 if snapshot["alarms"] else 0.65,
             evidence=[*evidence, *doc_evidence],
         )
+        prompt = get_prompt("diagnose_refine")
         llm_response = self._llm_refine(
             DiagnoseResponse,
-            system_prompt=(
-                "You are a mine dispatch diagnostics assistant. "
-                "Refine the RCA draft using only the provided alarms, telemetry summary, and SOP hits. "
-                "Do not invent evidence IDs or unsupported causes."
-            ),
+            system_prompt=prompt.system_prompt,
             prompt_context={
                 "snapshot_summary": snapshot["summary"],
                 "active_alarms": snapshot["alarms"],
@@ -90,5 +88,16 @@ class DiagnoseAgent(BaseAgent):
         )
         response = llm_response or draft_response
         response.evidence = self._merge_evidence(response.evidence, draft_response.evidence)
-        self._audit(response.model_dump(mode="json"), response.evidence)
+        self._audit(
+            response.model_dump(mode="json"),
+            response.evidence,
+            trace_id=self._trace_id(input_data),
+            snapshot_version=snapshot["snapshot_version"],
+            meta={
+                "llm_status": self._last_llm_status,
+                "llm_provider": self.llm_client.provider,
+                "prompt_id": prompt.prompt_id,
+                "prompt_version": prompt.version,
+            },
+        )
         return response

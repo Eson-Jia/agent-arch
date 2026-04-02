@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.agents.base import BaseAgent
+from app.llm.prompts import get_prompt
 from app.models.proposal import ForecastPoint, ForecastResponse, ScenarioCompare
 from app.utils.time import now_ts
 
@@ -12,7 +13,7 @@ class ForecastAgent(BaseAgent):
 
     def run(self, input_data: dict[str, Any] | None = None) -> ForecastResponse:
         horizons = (input_data or {}).get("horizons", [30, 60])
-        snapshot = self._snapshot()
+        snapshot = self._resolve_snapshot(input_data)
         _doc_hits, doc_evidence = self._retrieve("预测 拥堵 调度 周期 绕行")
         blocked_count = len(snapshot["blocked_segments"])
         available = snapshot["summary"]["available_vehicle_count"]
@@ -50,13 +51,10 @@ class ForecastAgent(BaseAgent):
             confidence=0.74,
             evidence=[*doc_evidence, *(alarm["alarm_id"] for alarm in snapshot["alarms"])],
         )
+        prompt = get_prompt("forecast_refine")
         llm_response = self._llm_refine(
             ForecastResponse,
-            system_prompt=(
-                "You are a mine dispatch forecasting assistant. "
-                "Refine the forecast draft using only the provided state snapshot and SOP evidence. "
-                "Keep numeric projections plausible and preserve structured JSON output."
-            ),
+            system_prompt=prompt.system_prompt,
             prompt_context={
                 "horizons": horizons,
                 "snapshot_summary": snapshot["summary"],
@@ -67,5 +65,16 @@ class ForecastAgent(BaseAgent):
         )
         response = llm_response or draft_response
         response.evidence = self._merge_evidence(response.evidence, draft_response.evidence)
-        self._audit(response.model_dump(mode="json"), response.evidence)
+        self._audit(
+            response.model_dump(mode="json"),
+            response.evidence,
+            trace_id=self._trace_id(input_data),
+            snapshot_version=snapshot["snapshot_version"],
+            meta={
+                "llm_status": self._last_llm_status,
+                "llm_provider": self.llm_client.provider,
+                "prompt_id": prompt.prompt_id,
+                "prompt_version": prompt.version,
+            },
+        )
         return response

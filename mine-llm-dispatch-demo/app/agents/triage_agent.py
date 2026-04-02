@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from app.agents.base import BaseAgent
+from app.llm.prompts import get_prompt
 from app.models.proposal import IncidentSummary, TriageAction, TriageResponse, WorkOrderDraft
 from app.utils.time import now_ts
 
@@ -28,7 +29,7 @@ class TriageAgent(BaseAgent):
 
     def run(self, input_data: dict[str, Any] | None = None) -> TriageResponse:
         since_minutes = (input_data or {}).get("since_minutes", 10)
-        snapshot = self._snapshot(since_minutes=since_minutes)
+        snapshot = self._resolve_snapshot(input_data, since_minutes=since_minutes)
         alarms = self._dedupe(snapshot["alarms"])
         doc_hits, doc_evidence = self._retrieve("告警 分诊 红色 预警 绕行 证据链")
         incidents: list[IncidentSummary] = []
@@ -81,13 +82,10 @@ class TriageAgent(BaseAgent):
             confidence=0.83 if alarms else 0.72,
             evidence=evidence or doc_evidence,
         )
+        prompt = get_prompt("triage_refine")
         llm_response = self._llm_refine(
             TriageResponse,
-            system_prompt=(
-                "You are a mine dispatch triage assistant. "
-                "Revise the draft response using only the provided alarms, SOP hits, and snapshot data. "
-                "Keep the response operational, concise, and evidence-grounded."
-            ),
+            system_prompt=prompt.system_prompt,
             prompt_context={
                 "snapshot_summary": snapshot["summary"],
                 "alarms": alarms,
@@ -97,5 +95,16 @@ class TriageAgent(BaseAgent):
         )
         response = llm_response or draft_response
         response.evidence = self._merge_evidence(response.evidence, draft_response.evidence)
-        self._audit(response.model_dump(mode="json"), response.evidence)
+        self._audit(
+            response.model_dump(mode="json"),
+            response.evidence,
+            trace_id=self._trace_id(input_data),
+            snapshot_version=snapshot["snapshot_version"],
+            meta={
+                "llm_status": self._last_llm_status,
+                "llm_provider": self.llm_client.provider,
+                "prompt_id": prompt.prompt_id,
+                "prompt_version": prompt.version,
+            },
+        )
         return response

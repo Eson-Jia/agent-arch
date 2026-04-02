@@ -9,6 +9,9 @@ class AuditEvent(BaseModel):
     ts: datetime
     event_type: str
     actor: str
+    trace_id: str | None = None
+    snapshot_version: int | None = None
+    meta: dict[str, Any] = Field(default_factory=dict)
     evidence: list[str] = Field(default_factory=list)
     payload: dict[str, Any] = Field(default_factory=dict)
     model_config = ConfigDict(extra="forbid")

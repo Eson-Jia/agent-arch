@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     snapshot_window_minutes: int = Field(default=30, alias="SNAPSHOT_WINDOW_MINUTES")
     vector_store: str = Field(default="chroma", alias="VECTOR_STORE")
     vector_store_path: Path = Field(default=Path("data/vector/chroma"), alias="VECTOR_STORE_PATH")
+    state_store_path: Path = Field(default=Path("data/state/state_store.json"), alias="STATE_STORE_PATH")
+    workflow_store_path: Path = Field(default=Path("data/state/workflows.json"), alias="WORKFLOW_STORE_PATH")
     audit_log_path: Path = Field(default=Path("data/audit/audit.jsonl"), alias="AUDIT_LOG_PATH")
     knowledge_base_path: Path = Field(default=Path("docs/knowledge_base"), alias="KNOWLEDGE_BASE_PATH")
     rules_path: Path = Field(default=Path("app/rules/sample_rules.yaml"), alias="RULES_PATH")

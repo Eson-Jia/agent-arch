@@ -23,7 +23,7 @@ class DispatchAgent(BaseAgent):
         self.solver = solver
 
     def run(self, input_data: dict[str, Any] | None = None) -> DispatchProposal:
-        snapshot = self._snapshot()
+        snapshot = self._resolve_snapshot(input_data)
         assignments = self.solver.solve(snapshot)
         _doc_hits, doc_evidence = self._retrieve("调度 策略 路权 预警 绕行")
         ts = now_ts(self.timezone_name)
@@ -61,5 +61,11 @@ class DispatchAgent(BaseAgent):
             ],
         )
         self.state_store.remember_suggestion(proposal)
-        self._audit(proposal.model_dump(mode="json"), proposal.evidence)
+        self._audit(
+            proposal.model_dump(mode="json"),
+            proposal.evidence,
+            trace_id=self._trace_id(input_data),
+            snapshot_version=snapshot["snapshot_version"],
+            meta={"engine": "ortools"},
+        )
         return proposal

@@ -24,6 +24,7 @@ class EvidenceRef(BaseModel):
 
 
 class SafetyAlarmEvent(BaseModel):
+    source_event_id: str | None = None
     alarm_id: str
     ts: datetime
     level: AlarmLevel

@@ -35,6 +35,7 @@ class CommsState(BaseModel):
 
 
 class VehicleTelemetry(BaseModel):
+    source_event_id: str | None = None
     ts: datetime
     truck_id: str
     pos: Position

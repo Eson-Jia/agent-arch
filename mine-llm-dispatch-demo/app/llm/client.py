@@ -28,12 +28,14 @@ class LLMClient:
         self.timeout_seconds = timeout_seconds
         self._client: Any | None = None
         self._live = False
+        self._last_outcome_reason = "disabled_mock" if provider != "anthropic" else "unavailable_configuration"
         if provider != "anthropic" or not api_key:
             return
         try:
             from anthropic import Anthropic
         except ImportError:
             logger.warning("Anthropic SDK is not installed; falling back to deterministic agent outputs")
+            self._last_outcome_reason = "sdk_missing"
             return
         self._client = Anthropic(
             api_key=api_key,
@@ -43,13 +45,19 @@ class LLMClient:
             max_retries=1,
         )
         self._live = True
+        self._last_outcome_reason = "ready"
 
     @property
     def is_live(self) -> bool:
         return self._live
 
+    @property
+    def last_outcome_reason(self) -> str:
+        return self._last_outcome_reason
+
     def generate_json(self, *, system_prompt: str, user_prompt: str) -> dict[str, Any] | None:
         if not self._live or self._client is None or not self.model:
+            self._last_outcome_reason = "not_live"
             return None
         try:
             message = self._client.messages.create(
@@ -60,8 +68,15 @@ class LLMClient:
                 messages=[{"role": "user", "content": user_prompt}],
             )
             text = self._extract_text(message)
-            return self._extract_json(text)
+            payload = self._extract_json(text)
+            self._last_outcome_reason = "success"
+            return payload
+        except ValueError:
+            self._last_outcome_reason = "invalid_json"
+            logger.exception("Anthropic returned invalid JSON; using deterministic fallback")
+            return None
         except Exception:
+            self._last_outcome_reason = "request_error"
             logger.exception("Anthropic request failed; using deterministic fallback")
             return None
 

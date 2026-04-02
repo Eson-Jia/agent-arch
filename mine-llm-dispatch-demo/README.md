@@ -19,8 +19,12 @@ mine-llm-dispatch-demo/
 │   ├── optim/          # OR-Tools 调度求解
 │   ├── rag/            # 知识库入库与检索
 │   ├── rules/          # 确定性规则守门
-│   └── storage/        # state / audit / vector store
-├── docs/knowledge_base/
+│   ├── storage/        # state / audit / vector store
+│   └── workflows/      # 多 Agent 编排入口
+├── docs/
+│   ├── knowledge_base/
+│   ├── production_execution_plan.md
+│   └── project_concepts.md
 ├── scripts/
 │   ├── seed_demo_data.py
 │   └── smoke_test.py
@@ -33,6 +37,7 @@ mine-llm-dispatch-demo/
 补充阅读：
 
 - `docs/project_concepts.md`：面向工程理解的概念说明，解释状态快照、RAG、求解器、规则引擎、LLM 边界和审计设计。
+- `docs/production_execution_plan.md`：从 demo 到 production 的分阶段改造计划和当前执行状态。
 
 ## 最新架构
 
@@ -40,7 +45,8 @@ mine-llm-dispatch-demo/
 
 ```text
 HTTP API (FastAPI)
-  -> StateStore / AuditStore / VectorStore(ChromaDB)
+  -> IncidentResponseOrchestrator / Agent APIs
+  -> StateStore(versioned) / AuditStore / VectorStore(ChromaDB)
   -> Agent Layer
      -> Triage / Diagnose / Forecast
         -> RAG 检索
@@ -57,6 +63,7 @@ HTTP API (FastAPI)
 
 - `API 层`：`app/main.py` 负责 FastAPI 路由、依赖装配、知识库启动入库和服务生命周期管理。
 - `状态层`：`StateStore` 保存最近态势、车辆遥测和告警；`AuditStore` 记录每次 Agent 输出；`VectorStore` 用 ChromaDB 持久化知识库检索。
+- `编排层`：`IncidentResponseOrchestrator` 提供 `/workflows/incident-response`，把分诊、调度和守门串成统一工作流，并固定到同一 `snapshot_version`。
 - `决策层`：`dispatch_agent` 走 OR-Tools 可行解，`gatekeeper_agent` 只做规则硬校验，`triage/diagnose/forecast` 允许用 LLM 做解释增强。
 - `模型层`：`app/llm/client.py` 统一封装 provider；当前支持 `mock` 和 `anthropic`。
 - `回退层`：真实 LLM 不可用、网关报错或返回 JSON 不合法时，自动回退到本地确定性逻辑，不影响接口可用性。
@@ -126,6 +133,8 @@ uv run python scripts/smoke_test.py
 ```env
 APP_ENV=dev
 VECTOR_STORE=chroma
+STATE_STORE_PATH=data/state/state_store.json
+WORKFLOW_STORE_PATH=data/state/workflows.json
 LLM_PROVIDER=mock
 AUDIT_LOG_PATH=data/audit/audit.jsonl
 ```
@@ -163,11 +172,16 @@ ANTHROPIC_BASE_URL=
 - `POST /ingest/alarm`
 - `GET /state/snapshot`
 - `GET /audit/events`
+- `GET /metrics/summary`
 - `POST /agents/triage`
 - `POST /agents/dispatch`
 - `POST /agents/gatekeeper`
 - `POST /agents/diagnose`
 - `POST /agents/forecast`
+- `POST /workflows/incident-response`
+- `GET /workflows/{workflow_id}`
+- `POST /workflows/{workflow_id}/approval`
+- `POST /workflows/{workflow_id}/resubmit`
 
 ## Smoke Test
 
@@ -177,7 +191,7 @@ ANTHROPIC_BASE_URL=
 uv run python scripts/smoke_test.py
 ```
 
-脚本会依次执行 `telemetry -> alarm -> triage -> dispatch -> gatekeeper -> audit`，并在关键结果不符合预期时直接退出报错。
+脚本会依次执行 `telemetry -> alarm -> triage -> dispatch -> gatekeeper -> incident workflow -> approval/reject -> resubmit -> metrics -> audit`，并在关键结果不符合预期时直接退出报错。
 
 1. 写入遥测：
 

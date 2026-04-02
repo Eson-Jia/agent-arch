@@ -81,10 +81,67 @@ def main() -> None:
         )
         _assert(gatekeeper["status"] == "PASS", "gatekeeper did not pass the proposal")
 
+        workflow = _post(
+            client,
+            "/workflows/incident-response",
+            {
+                "since_minutes": 10,
+                "operator_role": "dispatcher",
+                "include_diagnose": True,
+                "include_forecast": True,
+            },
+        )
+        _assert(workflow["final_status"] == "PASS", "incident workflow did not pass gatekeeper validation")
+        _assert(workflow["snapshot_id"].startswith("SNP-"), "workflow did not return a versioned snapshot id")
+        _assert(workflow["approval_status"] == "PENDING_APPROVAL", "workflow should enter pending approval")
+
+        approval = _post(
+            client,
+            f"/workflows/{workflow['workflow_id']}/approval",
+            {
+                "action": "REJECT",
+                "actor": "shift_supervisor",
+                "comment": "need another revision",
+                "expected_proposal_revision": 1,
+            },
+        )
+        _assert(approval["approval_status"] == "REJECTED", "workflow rejection did not persist")
+
+        resubmit = _post(
+            client,
+            f"/workflows/{workflow['workflow_id']}/resubmit",
+            {
+                "since_minutes": 10,
+                "operator_role": "dispatcher",
+                "include_diagnose": True,
+                "include_forecast": True,
+                "actor": "dispatcher",
+                "comment": "submit revision 2",
+            },
+        )
+        _assert(resubmit["proposal_revision"] == 2, "workflow resubmit did not bump proposal revision")
+
+        final_approval = _post(
+            client,
+            f"/workflows/{workflow['workflow_id']}/approval",
+            {
+                "action": "APPROVE",
+                "actor": "shift_supervisor",
+                "comment": "approved revision 2",
+                "expected_proposal_revision": 2,
+            },
+        )
+        _assert(final_approval["approval_status"] == "APPROVED", "workflow approval did not persist")
+
+        metrics = client.get("/metrics/summary")
+        metrics.raise_for_status()
+        metrics_json = metrics.json()
+        _assert(metrics_json["workflow_approved_count"] >= 1, "metrics did not count approved workflow")
+
         audit_response = client.get("/audit/events")
         audit_response.raise_for_status()
         audit_events = audit_response.json()
-        _assert(len(audit_events) >= 3, "audit log is missing expected events")
+        _assert(len(audit_events) >= 10, "audit log is missing expected workflow events")
 
     print(
         {
@@ -92,6 +149,11 @@ def main() -> None:
             "triage_alarm_id": triage["top_incidents"][0]["alarm_id"],
             "dispatch_proposal_id": dispatch["proposal_id"],
             "gatekeeper_status": gatekeeper["status"],
+            "workflow_id": workflow["workflow_id"],
+            "workflow_snapshot_id": workflow["snapshot_id"],
+            "workflow_revision": final_approval["proposal_revision"],
+            "workflow_approval_status": final_approval["approval_status"],
+            "workflow_approved_count": metrics_json["workflow_approved_count"],
             "audit_event_count": len(audit_events),
         }
     )

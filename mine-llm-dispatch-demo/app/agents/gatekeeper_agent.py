@@ -19,8 +19,15 @@ class GatekeeperAgent(BaseAgent):
             raise ValueError("proposal is required")
         proposal = DispatchProposal.model_validate(input_data["proposal"])
         operator_role = input_data.get("operator_role", "dispatcher")
-        alarms = self._snapshot()["alarms"]
+        snapshot = self._resolve_snapshot(input_data)
+        alarms = snapshot["alarms"]
         response = self.rule_engine.validate_proposal(proposal, alarms, operator_role=operator_role)
         response.evidence = [*response.evidence, *(alarm["alarm_id"] for alarm in alarms)]
-        self._audit(response.model_dump(mode="json"), response.evidence)
+        self._audit(
+            response.model_dump(mode="json"),
+            response.evidence,
+            trace_id=self._trace_id(input_data),
+            snapshot_version=snapshot["snapshot_version"],
+            meta={"rule_status": response.status},
+        )
         return response
