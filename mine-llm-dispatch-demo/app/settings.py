@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     knowledge_base_path: Path = Field(default=Path("docs/knowledge_base"), alias="KNOWLEDGE_BASE_PATH")
     rules_path: Path = Field(default=Path("app/rules/sample_rules.yaml"), alias="RULES_PATH")
     llm_provider: str = Field(default="mock", alias="LLM_PROVIDER")
+    llm_strategy: str = Field(default="prefer_live", alias="LLM_STRATEGY")
     llm_api_key: str | None = Field(default=None, alias="LLM_API_KEY")
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     anthropic_auth_token: str | None = Field(default=None, alias="ANTHROPIC_AUTH_TOKEN")
@@ -26,6 +27,14 @@ class Settings(BaseSettings):
     anthropic_base_url: str | None = Field(default=None, alias="ANTHROPIC_BASE_URL")
     anthropic_max_tokens: int = Field(default=1500, alias="ANTHROPIC_MAX_TOKENS")
     anthropic_timeout_seconds: float = Field(default=20.0, alias="ANTHROPIC_TIMEOUT_SECONDS")
+    llm_failure_threshold: int = Field(default=2, alias="LLM_FAILURE_THRESHOLD")
+    llm_cooldown_seconds: float = Field(default=60.0, alias="LLM_COOLDOWN_SECONDS")
+    embedding_provider: str = Field(default="hash", alias="EMBEDDING_PROVIDER")
+    embedding_api_url: str | None = Field(default=None, alias="EMBEDDING_API_URL")
+    embedding_api_key: str | None = Field(default=None, alias="EMBEDDING_API_KEY")
+    embedding_model: str | None = Field(default=None, alias="EMBEDDING_MODEL")
+    embedding_timeout_seconds: float = Field(default=15.0, alias="EMBEDDING_TIMEOUT_SECONDS")
+    embedding_vector_dims: int = Field(default=32, alias="EMBEDDING_VECTOR_DIMS")
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property

@@ -1,0 +1,82 @@
+[
+  {
+    "case_id": "blocked_r7_obstacle",
+    "telemetry": [
+      {
+        "ts": "2026-04-02T10:15:23+08:00",
+        "truck_id": "T12",
+        "pos": {"x": 1023.4, "y": 884.2, "z": 56.7, "map_ver": "map_2026_04_01"},
+        "motion": {"speed_mps": 8.2, "heading_deg": 172.3, "mode": "AUTO"},
+        "load": {"state": "EMPTY", "payload_t": 0},
+        "health": {"fault_code": null, "soc_pct": 63, "engine_temp_c": 72.1},
+        "comms": {"rssi_dbm": -82, "uplink_kbps": 3200, "loss_pct_5s": 0.8}
+      },
+      {
+        "ts": "2026-04-02T10:15:30+08:00",
+        "truck_id": "T18",
+        "pos": {"x": 1004.0, "y": 846.0, "z": 59.4, "map_ver": "map_2026_04_01"},
+        "motion": {"speed_mps": 6.8, "heading_deg": 148.0, "mode": "AUTO"},
+        "load": {"state": "EMPTY", "payload_t": 0},
+        "health": {"fault_code": null, "soc_pct": 71, "engine_temp_c": 69.2},
+        "comms": {"rssi_dbm": -85, "uplink_kbps": 3000, "loss_pct_5s": 1.4}
+      }
+    ],
+    "alarms": [
+      {
+        "alarm_id": "ALM-20260402-000872",
+        "ts": "2026-04-02T10:16:01+08:00",
+        "level": "ORANGE",
+        "category": "ROAD_OBSTACLE",
+        "location": {"road_segment": "R7", "bbox": [1000, 860, 1060, 910]},
+        "impact_zone": {"blocked": true, "detour_routes": ["R9", "R11"]},
+        "evidence": [{"type": "cv_event", "id": "CV-77821", "confidence": 0.91}]
+      }
+    ],
+    "workflow_request": {
+      "since_minutes": 10,
+      "operator_role": "dispatcher",
+      "include_diagnose": true,
+      "include_forecast": true
+    },
+    "expected": {
+      "final_status": "PASS",
+      "first_alarm_id": "ALM-20260402-000872",
+      "blocked_routes_forbidden": ["R7"]
+    }
+  },
+  {
+    "case_id": "clear_shift_baseline",
+    "telemetry": [
+      {
+        "ts": "2026-04-02T11:15:23+08:00",
+        "truck_id": "T21",
+        "pos": {"x": 980.0, "y": 820.0, "z": 60.0, "map_ver": "map_2026_04_01"},
+        "motion": {"speed_mps": 7.5, "heading_deg": 180.0, "mode": "AUTO"},
+        "load": {"state": "EMPTY", "payload_t": 0},
+        "health": {"fault_code": null, "soc_pct": 80, "engine_temp_c": 70.0},
+        "comms": {"rssi_dbm": -75, "uplink_kbps": 3500, "loss_pct_5s": 0.5}
+      },
+      {
+        "ts": "2026-04-02T11:15:28+08:00",
+        "truck_id": "T22",
+        "pos": {"x": 1045.0, "y": 900.0, "z": 61.0, "map_ver": "map_2026_04_01"},
+        "motion": {"speed_mps": 7.0, "heading_deg": 140.0, "mode": "AUTO"},
+        "load": {"state": "EMPTY", "payload_t": 0},
+        "health": {"fault_code": null, "soc_pct": 77, "engine_temp_c": 68.0},
+        "comms": {"rssi_dbm": -78, "uplink_kbps": 3300, "loss_pct_5s": 0.7}
+      }
+    ],
+    "alarms": [],
+    "workflow_request": {
+      "since_minutes": 10,
+      "operator_role": "dispatcher",
+      "include_diagnose": false,
+      "include_forecast": true
+    },
+    "expected": {
+      "final_status": "PASS",
+      "first_alarm_id": "NONE",
+      "blocked_routes_forbidden": []
+    }
+  }
+]

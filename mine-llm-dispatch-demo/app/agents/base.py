@@ -37,6 +37,7 @@ class BaseAgent(ABC):
         self.llm_client = llm_client
         self.timezone_name = timezone_name
         self._last_llm_status = "not_applicable"
+        self._last_rag_metrics: dict[str, Any] = {}
 
     def _snapshot(self, since_minutes: int | None = None) -> dict[str, Any]:
         return self.state_store.snapshot(since_minutes=since_minutes)
@@ -59,6 +60,15 @@ class BaseAgent(ABC):
 
     def _retrieve(self, query: str, k: int = 3) -> tuple[list[dict[str, Any]], list[str]]:
         hits = retrieve_top_k(self.vector_store, query, k=k)
+        scores = [round(hit.score, 4) for hit in hits]
+        self._last_rag_metrics = {
+            "rag_query": query,
+            "rag_hit_count": len(hits),
+            "rag_top_score": max(scores) if scores else 0.0,
+            "rag_avg_score": round(sum(scores) / len(scores), 4) if scores else 0.0,
+            "embedding_provider": self.vector_store.embedding_provider.name,
+            "embedding_status": getattr(self.vector_store.embedding_provider, "last_outcome_reason", "unknown"),
+        }
         evidence = [hit.doc_id for hit in hits]
         payload = [
             {
@@ -70,6 +80,9 @@ class BaseAgent(ABC):
             for hit in hits
         ]
         return payload, evidence
+
+    def _rag_meta(self) -> dict[str, Any]:
+        return dict(self._last_rag_metrics)
 
     def _audit(
         self,

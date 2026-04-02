@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any
 
 import httpx
@@ -21,14 +22,25 @@ class LLMClient:
         base_url: str | None = None,
         max_tokens: int = 1500,
         timeout_seconds: float = 20.0,
+        strategy: str = "prefer_live",
+        failure_threshold: int = 2,
+        cooldown_seconds: float = 60.0,
     ) -> None:
         self.provider = provider
         self.model = model
         self.max_tokens = max_tokens
         self.timeout_seconds = timeout_seconds
+        self.strategy = strategy
+        self.failure_threshold = max(1, failure_threshold)
+        self.cooldown_seconds = max(1.0, cooldown_seconds)
         self._client: Any | None = None
         self._live = False
+        self._consecutive_failures = 0
+        self._opened_until = 0.0
         self._last_outcome_reason = "disabled_mock" if provider != "anthropic" else "unavailable_configuration"
+        if strategy == "deterministic_only":
+            self._last_outcome_reason = "forced_deterministic"
+            return
         if provider != "anthropic" or not api_key:
             return
         try:
@@ -49,6 +61,12 @@ class LLMClient:
 
     @property
     def is_live(self) -> bool:
+        if self._opened_until and time.monotonic() < self._opened_until:
+            self._last_outcome_reason = "circuit_open"
+            return False
+        if self._opened_until and time.monotonic() >= self._opened_until:
+            self._opened_until = 0.0
+            self._consecutive_failures = 0
         return self._live
 
     @property
@@ -58,6 +76,8 @@ class LLMClient:
     def generate_json(self, *, system_prompt: str, user_prompt: str) -> dict[str, Any] | None:
         if not self._live or self._client is None or not self.model:
             self._last_outcome_reason = "not_live"
+            return None
+        if not self.is_live:
             return None
         try:
             message = self._client.messages.create(
@@ -69,16 +89,24 @@ class LLMClient:
             )
             text = self._extract_text(message)
             payload = self._extract_json(text)
+            self._consecutive_failures = 0
             self._last_outcome_reason = "success"
             return payload
         except ValueError:
-            self._last_outcome_reason = "invalid_json"
+            self._record_failure("invalid_json")
             logger.exception("Anthropic returned invalid JSON; using deterministic fallback")
             return None
         except Exception:
-            self._last_outcome_reason = "request_error"
+            self._record_failure("request_error")
             logger.exception("Anthropic request failed; using deterministic fallback")
             return None
+
+    def _record_failure(self, reason: str) -> None:
+        self._consecutive_failures += 1
+        self._last_outcome_reason = reason
+        if self._consecutive_failures >= self.failure_threshold:
+            self._opened_until = time.monotonic() + self.cooldown_seconds
+            self._last_outcome_reason = "circuit_open"
 
     def _extract_text(self, message: Any) -> str:
         blocks = getattr(message, "content", [])
@@ -106,5 +134,8 @@ def build_llm_client(settings: Settings) -> LLMClient:
             base_url=settings.anthropic_base_url,
             max_tokens=settings.anthropic_max_tokens,
             timeout_seconds=settings.anthropic_timeout_seconds,
+            strategy=settings.llm_strategy,
+            failure_threshold=settings.llm_failure_threshold,
+            cooldown_seconds=settings.llm_cooldown_seconds,
         )
-    return LLMClient(provider="mock")
+    return LLMClient(provider="mock", strategy=settings.llm_strategy)

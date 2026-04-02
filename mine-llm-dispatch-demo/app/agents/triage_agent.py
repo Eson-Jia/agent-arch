@@ -101,6 +101,7 @@ class TriageAgent(BaseAgent):
             trace_id=self._trace_id(input_data),
             snapshot_version=snapshot["snapshot_version"],
             meta={
+                **self._rag_meta(),
                 "llm_status": self._last_llm_status,
                 "llm_provider": self.llm_client.provider,
                 "prompt_id": prompt.prompt_id,

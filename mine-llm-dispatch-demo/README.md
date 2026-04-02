@@ -17,6 +17,8 @@ mine-llm-dispatch-demo/
 │   ├── agents/         # 多 Agent 逻辑
 │   ├── llm/            # mock / anthropic provider 抽象
 │   ├── optim/          # OR-Tools 调度求解
+│   ├── embeddings/     # hash / http embedding provider 抽象
+│   ├── eval/           # 离线评测逻辑
 │   ├── rag/            # 知识库入库与检索
 │   ├── rules/          # 确定性规则守门
 │   ├── storage/        # state / audit / vector store
@@ -26,6 +28,7 @@ mine-llm-dispatch-demo/
 │   ├── production_execution_plan.md
 │   └── project_concepts.md
 ├── scripts/
+│   ├── evaluate_quality.py
 │   ├── seed_demo_data.py
 │   └── smoke_test.py
 ├── tests/
@@ -65,7 +68,8 @@ HTTP API (FastAPI)
 - `状态层`：`StateStore` 保存最近态势、车辆遥测和告警；`AuditStore` 记录每次 Agent 输出；`VectorStore` 用 ChromaDB 持久化知识库检索。
 - `编排层`：`IncidentResponseOrchestrator` 提供 `/workflows/incident-response`，把分诊、调度和守门串成统一工作流，并固定到同一 `snapshot_version`。
 - `决策层`：`dispatch_agent` 走 OR-Tools 可行解，`gatekeeper_agent` 只做规则硬校验，`triage/diagnose/forecast` 允许用 LLM 做解释增强。
-- `模型层`：`app/llm/client.py` 统一封装 provider；当前支持 `mock` 和 `anthropic`。
+- `模型层`：`app/llm/client.py` 统一封装 provider；当前支持 `mock` 和 `anthropic`，并带 prompt 注册表、失败阈值和熔断冷却时间。
+- `知识层`：`app/embeddings/` 负责 embedding provider 抽象；默认 `hash`，可切到兼容 `POST /embeddings` 的 HTTP provider。
 - `回退层`：真实 LLM 不可用、网关报错或返回 JSON 不合法时，自动回退到本地确定性逻辑，不影响接口可用性。
 
 ### Agent 边界
@@ -136,6 +140,8 @@ VECTOR_STORE=chroma
 STATE_STORE_PATH=data/state/state_store.json
 WORKFLOW_STORE_PATH=data/state/workflows.json
 LLM_PROVIDER=mock
+LLM_STRATEGY=prefer_live
+EMBEDDING_PROVIDER=hash
 AUDIT_LOG_PATH=data/audit/audit.jsonl
 ```
 
@@ -143,6 +149,7 @@ AUDIT_LOG_PATH=data/audit/audit.jsonl
 
 - 当前 MVP 使用 `mock` 推理模板，不依赖外部 LLM 即可运行。
 - 支持将 `LLM_PROVIDER` 切到 `anthropic`，用 Claude Opus 原生 API 做分诊、诊断和预测增强。
+- 支持将 `EMBEDDING_PROVIDER` 切到 `http`，接兼容 `POST /embeddings` 的第三方 embedding 服务。
 - 所有密钥都通过环境变量传入，代码和日志不会写死密钥。
 - 原始视频、个人定位等敏感数据不进入知识库，只保留结构化事件引用。
 
@@ -189,6 +196,12 @@ ANTHROPIC_BASE_URL=
 
 ```bash
 uv run python scripts/smoke_test.py
+```
+
+离线质量评测：
+
+```bash
+uv run python scripts/evaluate_quality.py
 ```
 
 脚本会依次执行 `telemetry -> alarm -> triage -> dispatch -> gatekeeper -> incident workflow -> approval/reject -> resubmit -> metrics -> audit`，并在关键结果不符合预期时直接退出报错。

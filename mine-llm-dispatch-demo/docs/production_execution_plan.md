@@ -80,6 +80,13 @@
 - RAG 与 LLM 质量可离线评估
 - 外部模型故障时系统仍能维持确定性主链
 
+### 当前状态
+
+- 已完成
+- 当前已落地 prompt 注册表、provider/strategy 配置、LLM 熔断降级和 embedding provider 抽象
+- 当前已支持 `/metrics/summary` 聚合 prompt 使用、LLM 回退和 RAG 命中质量
+- 当前已补 `scripts/evaluate_quality.py` 和固定离线评测集
+
 ## Phase 4：生产接入
 
 ### 目标

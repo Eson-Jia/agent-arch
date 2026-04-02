@@ -8,11 +8,15 @@ from app.models.proposal import IncidentWorkflowResponse
 
 def summarize_metrics(audit_events: list[dict[str, Any]], workflows: list[IncidentWorkflowResponse]) -> dict[str, Any]:
     llm_status_counter: Counter[str] = Counter()
+    prompt_usage_counter: Counter[str] = Counter()
+    embedding_status_counter: Counter[str] = Counter()
     duplicate_telemetry_count = 0
     duplicate_alarm_count = 0
     gatekeeper_pass_count = 0
     gatekeeper_fail_count = 0
     workflow_run_count = 0
+    rag_top_scores: list[float] = []
+    rag_hit_counts: list[int] = []
 
     for event in audit_events:
         event_type = event.get("event_type")
@@ -34,6 +38,19 @@ def summarize_metrics(audit_events: list[dict[str, Any]], workflows: list[Incide
         llm_status = meta.get("llm_status")
         if llm_status:
             llm_status_counter[str(llm_status)] += 1
+        prompt_id = meta.get("prompt_id")
+        prompt_version = meta.get("prompt_version")
+        if prompt_id and prompt_version:
+            prompt_usage_counter[f"{prompt_id}:{prompt_version}"] += 1
+        embedding_status = meta.get("embedding_status")
+        if embedding_status:
+            embedding_status_counter[str(embedding_status)] += 1
+        rag_top_score = meta.get("rag_top_score")
+        rag_hit_count = meta.get("rag_hit_count")
+        if rag_top_score is not None:
+            rag_top_scores.append(float(rag_top_score))
+        if rag_hit_count is not None:
+            rag_hit_counts.append(int(rag_hit_count))
 
     llm_attempt_statuses = {
         key: value
@@ -62,6 +79,10 @@ def summarize_metrics(audit_events: list[dict[str, Any]], workflows: list[Incide
         "llm_attempt_count": llm_attempt_count,
         "llm_fallback_count": llm_fallback_count,
         "llm_fallback_rate": round(llm_fallback_count / llm_attempt_count, 4) if llm_attempt_count else 0.0,
+        "prompt_usage_counts": dict(prompt_usage_counter),
+        "embedding_status_counts": dict(embedding_status_counter),
+        "rag_avg_top_score": round(sum(rag_top_scores) / len(rag_top_scores), 4) if rag_top_scores else 0.0,
+        "rag_avg_hit_count": round(sum(rag_hit_counts) / len(rag_hit_counts), 4) if rag_hit_counts else 0.0,
         "duplicate_telemetry_count": duplicate_telemetry_count,
         "duplicate_alarm_count": duplicate_alarm_count,
     }

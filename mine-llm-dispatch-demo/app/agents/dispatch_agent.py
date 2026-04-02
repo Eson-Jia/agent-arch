@@ -66,6 +66,6 @@ class DispatchAgent(BaseAgent):
             proposal.evidence,
             trace_id=self._trace_id(input_data),
             snapshot_version=snapshot["snapshot_version"],
-            meta={"engine": "ortools"},
+            meta={**self._rag_meta(), "engine": "ortools"},
         )
         return proposal

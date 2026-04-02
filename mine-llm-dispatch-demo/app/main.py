@@ -10,6 +10,7 @@ from app.agents.dispatch_agent import DispatchAgent
 from app.agents.forecast_agent import ForecastAgent
 from app.agents.gatekeeper_agent import GatekeeperAgent
 from app.agents.triage_agent import TriageAgent
+from app.embeddings.providers import build_embedding_provider
 from app.llm.client import LLMClient, build_llm_client
 from app.models.alarm import SafetyAlarmEvent
 from app.models.audit import AuditEvent
@@ -64,7 +65,10 @@ def build_services(settings: Settings) -> AppServices:
         path=settings.resolve_path(settings.state_store_path),
     )
     audit_store = AuditStore(settings.resolve_path(settings.audit_log_path))
-    vector_store = VectorStore(settings.resolve_path(settings.vector_store_path))
+    vector_store = VectorStore(
+        settings.resolve_path(settings.vector_store_path),
+        embedding_provider=build_embedding_provider(settings),
+    )
     workflow_store = WorkflowStore(settings.resolve_path(settings.workflow_store_path), timezone_name=settings.timezone)
     llm_client = build_llm_client(settings)
     rule_engine = RuleEngine(settings.resolve_path(settings.rules_path))
