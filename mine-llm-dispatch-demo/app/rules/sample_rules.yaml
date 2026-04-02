@@ -1,0 +1,32 @@
+permissions:
+  dispatcher:
+    can_submit_proposal: true
+    requires_human_confirmation: true
+  safety_officer:
+    can_submit_proposal: true
+    requires_human_confirmation: true
+  guest:
+    can_submit_proposal: false
+    requires_human_confirmation: true
+
+no_go_segments:
+  - R13
+
+route_segments:
+  R5:
+    - R5
+  R7:
+    - R7
+  R9:
+    - R9
+  R11:
+    - R11
+  HOLD:
+    - SAFE_ZONE
+
+speed_limits_kph:
+  R5: 25
+  R7: 18
+  R9: 20
+  R11: 20
+  HOLD: 5

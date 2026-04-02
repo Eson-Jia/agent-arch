@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mine-llm-dispatch-demo"
+version = "0.1.0"
+description = "MVP demo for a mine dispatch room LLM agent platform."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "OpenAI Codex" }]
+dependencies = [
+  "chromadb>=0.5,<0.6",
+  "fastapi>=0.135,<0.136",
+  "httpx>=0.27,<0.28",
+  "ortools>=9.10,<10.0",
+  "pydantic>=2.7,<3.0",
+  "pydantic-settings>=2.0,<3.0",
+  "python-dotenv>=1.0,<2.0",
+  "PyYAML>=6.0,<7.0",
+  "uvicorn[standard]>=0.30,<0.31",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2,<9.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
