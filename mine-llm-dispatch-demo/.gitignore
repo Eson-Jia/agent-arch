@@ -5,5 +5,6 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 data/audit/*.jsonl
+data/execution/*.jsonl
 data/state/*.json
 data/vector/chroma/

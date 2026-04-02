@@ -19,7 +19,9 @@ mine-llm-dispatch-demo/
 │   ├── optim/          # OR-Tools 调度求解
 │   ├── embeddings/     # hash / http embedding provider 抽象
 │   ├── eval/           # 离线评测逻辑
+│   ├── execution/      # 下游执行适配器
 │   ├── rag/            # 知识库入库与检索
+│   ├── replay/         # 审计回放与重演
 │   ├── rules/          # 确定性规则守门
 │   ├── storage/        # state / audit / vector store
 │   └── workflows/      # 多 Agent 编排入口
@@ -139,6 +141,7 @@ APP_ENV=dev
 VECTOR_STORE=chroma
 STATE_STORE_PATH=data/state/state_store.json
 WORKFLOW_STORE_PATH=data/state/workflows.json
+EXECUTION_LOG_PATH=data/execution/commands.jsonl
 LLM_PROVIDER=mock
 LLM_STRATEGY=prefer_live
 EMBEDDING_PROVIDER=hash
@@ -180,6 +183,7 @@ ANTHROPIC_BASE_URL=
 - `GET /state/snapshot`
 - `GET /audit/events`
 - `GET /metrics/summary`
+- `GET /executions`
 - `POST /agents/triage`
 - `POST /agents/dispatch`
 - `POST /agents/gatekeeper`
@@ -189,6 +193,8 @@ ANTHROPIC_BASE_URL=
 - `GET /workflows/{workflow_id}`
 - `POST /workflows/{workflow_id}/approval`
 - `POST /workflows/{workflow_id}/resubmit`
+- `POST /workflows/{workflow_id}/execute`
+- `POST /replay/audit`
 
 ## Smoke Test
 
@@ -204,7 +210,7 @@ uv run python scripts/smoke_test.py
 uv run python scripts/evaluate_quality.py
 ```
 
-脚本会依次执行 `telemetry -> alarm -> triage -> dispatch -> gatekeeper -> incident workflow -> approval/reject -> resubmit -> metrics -> audit`，并在关键结果不符合预期时直接退出报错。
+脚本会依次执行 `telemetry -> alarm -> triage -> dispatch -> gatekeeper -> incident workflow -> approval/reject -> resubmit -> metrics -> audit`，并在关键结果不符合预期时直接退出报错。执行适配和审计回放可通过 API 进一步验证。
 
 1. 写入遥测：
 

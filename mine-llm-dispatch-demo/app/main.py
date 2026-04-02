@@ -11,9 +11,11 @@ from app.agents.forecast_agent import ForecastAgent
 from app.agents.gatekeeper_agent import GatekeeperAgent
 from app.agents.triage_agent import TriageAgent
 from app.embeddings.providers import build_embedding_provider
+from app.execution.adapter import MockExecutionAdapter
 from app.llm.client import LLMClient, build_llm_client
 from app.models.alarm import SafetyAlarmEvent
 from app.models.audit import AuditEvent
+from app.models.execution import AuditReplayRequest, ExecutionRequest
 from app.models.proposal import (
     DiagnoseRequest,
     DispatchProposal,
@@ -25,6 +27,7 @@ from app.models.proposal import (
     WorkflowResubmitRequest,
     TriageRequest,
 )
+from app.replay.service import AuditReplayService
 from app.observability.metrics import summarize_metrics
 from app.models.telemetry import VehicleTelemetry
 from app.optim.solver import DispatchSolver
@@ -32,6 +35,7 @@ from app.rag.ingest import ingest_knowledge_base
 from app.rules.rule_engine import RuleEngine
 from app.settings import Settings, get_settings
 from app.storage.audit_store import AuditStore
+from app.storage.execution_store import ExecutionStore
 from app.storage.state_store import StateStore
 from app.storage.vector_store import VectorStore
 from app.storage.workflow_store import WorkflowStore
@@ -56,6 +60,9 @@ class AppServices:
     forecast_agent: ForecastAgent
     workflow_store: WorkflowStore
     incident_orchestrator: IncidentResponseOrchestrator
+    execution_store: ExecutionStore
+    execution_adapter: MockExecutionAdapter
+    replay_service: AuditReplayService
 
 
 def build_services(settings: Settings) -> AppServices:
@@ -65,6 +72,7 @@ def build_services(settings: Settings) -> AppServices:
         path=settings.resolve_path(settings.state_store_path),
     )
     audit_store = AuditStore(settings.resolve_path(settings.audit_log_path))
+    execution_store = ExecutionStore(settings.resolve_path(settings.execution_log_path))
     vector_store = VectorStore(
         settings.resolve_path(settings.vector_store_path),
         embedding_provider=build_embedding_provider(settings),
@@ -89,6 +97,15 @@ def build_services(settings: Settings) -> AppServices:
         forecast_agent=forecast_agent,
         timezone_name=settings.timezone,
     )
+    execution_adapter = MockExecutionAdapter(execution_store=execution_store, timezone_name=settings.timezone)
+    replay_service = AuditReplayService(
+        audit_store=audit_store,
+        vector_store=vector_store,
+        llm_client=llm_client,
+        rule_engine=rule_engine,
+        timezone_name=settings.timezone,
+        snapshot_window_minutes=settings.snapshot_window_minutes,
+    )
     return AppServices(
         settings=settings,
         state_store=state_store,
@@ -103,6 +120,9 @@ def build_services(settings: Settings) -> AppServices:
         forecast_agent=forecast_agent,
         workflow_store=workflow_store,
         incident_orchestrator=incident_orchestrator,
+        execution_store=execution_store,
+        execution_adapter=execution_adapter,
+        replay_service=replay_service,
     )
 
 
@@ -143,7 +163,7 @@ def create_app() -> FastAPI:
                 actor="telemetry_ingest_api",
                 trace_id=event_key,
                 meta={"result": result, "event_key": event_key},
-                payload={"truck_id": telemetry.truck_id, "ts": telemetry.ts.isoformat()},
+                payload=telemetry.model_dump(mode="json"),
             )
         )
         return {"status": result, "truck_id": telemetry.truck_id, "event_key": event_key}
@@ -160,7 +180,7 @@ def create_app() -> FastAPI:
                 actor="alarm_ingest_api",
                 trace_id=event_key,
                 meta={"result": result, "event_key": event_key},
-                payload={"alarm_id": alarm.alarm_id, "ts": alarm.ts.isoformat()},
+                payload=alarm.model_dump(mode="json"),
             )
         )
         return {"status": result, "alarm_id": alarm.alarm_id, "event_key": event_key}
@@ -178,6 +198,10 @@ def create_app() -> FastAPI:
         events = services.audit_store.list_events(limit=5000)
         workflows = services.workflow_store.list_records(limit=500)
         return summarize_metrics(events, workflows)
+
+    @app.get("/executions")
+    def get_executions(services: AppServices = Depends(get_services), limit: int = 100) -> list[dict]:
+        return services.execution_store.list_records(limit=limit)
 
     @app.post("/agents/triage")
     def run_triage(
@@ -255,6 +279,40 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="workflow not found") from None
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/workflows/{workflow_id}/execute")
+    def execute_workflow(
+        workflow_id: str,
+        request_body: ExecutionRequest,
+        services: AppServices = Depends(get_services),
+    ):
+        workflow = services.incident_orchestrator.get(workflow_id)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="workflow not found")
+        if workflow.approval_status != "APPROVED":
+            raise HTTPException(status_code=409, detail="workflow is not approved for execution")
+        record = services.execution_adapter.execute(workflow, request_body)
+        services.audit_store.append(
+            AuditEvent(
+                event_id=generate_id("AUD"),
+                ts=now_ts(services.settings.timezone),
+                event_type="workflow_execute",
+                actor=request_body.actor,
+                trace_id=workflow_id,
+                snapshot_version=workflow.snapshot_version,
+                meta={"adapter": request_body.adapter, "proposal_revision": workflow.proposal_revision},
+                evidence=workflow.evidence,
+                payload=record.model_dump(mode="json"),
+            )
+        )
+        return record
+
+    @app.post("/replay/audit")
+    def replay_audit(
+        request_body: AuditReplayRequest,
+        services: AppServices = Depends(get_services),
+    ):
+        return services.replay_service.replay(request_body)
 
     return app
 

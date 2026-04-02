@@ -22,6 +22,7 @@ def _configure_env(tmp_path, monkeypatch, llm_provider: str = "mock"):
     monkeypatch.setenv("STATE_STORE_PATH", str(tmp_path / "state.json"))
     monkeypatch.setenv("WORKFLOW_STORE_PATH", str(tmp_path / "workflows.json"))
     monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
+    monkeypatch.setenv("EXECUTION_LOG_PATH", str(tmp_path / "executions.jsonl"))
     monkeypatch.setenv("VECTOR_STORE_PATH", str(tmp_path / "vector"))
     monkeypatch.setenv("KNOWLEDGE_BASE_PATH", str(project_root / "docs/knowledge_base"))
     monkeypatch.setenv("RULES_PATH", str(project_root / "app/rules/sample_rules.yaml"))
@@ -294,5 +295,70 @@ def test_ingest_idempotency_and_metrics_capture_duplicates_and_gatekeeper_failur
         assert metrics_json["duplicate_alarm_count"] == 1
         assert metrics_json["gatekeeper_fail_count"] >= 1
         assert metrics_json["gatekeeper_reject_rate"] > 0
+
+    get_settings.cache_clear()
+
+
+def test_workflow_execution_and_audit_replay(tmp_path, monkeypatch):
+    _configure_env(tmp_path, monkeypatch, llm_provider="mock")
+
+    with TestClient(create_app()) as client:
+        _seed_demo_state(client)
+        workflow = client.post(
+            "/workflows/incident-response",
+            json={
+                "since_minutes": 10,
+                "operator_role": "dispatcher",
+                "include_diagnose": True,
+                "include_forecast": True,
+            },
+        )
+        assert workflow.status_code == 200
+        workflow_json = workflow.json()
+
+        approval = client.post(
+            f"/workflows/{workflow_json['workflow_id']}/approval",
+            json={
+                "action": "APPROVE",
+                "actor": "shift_supervisor",
+                "comment": "approved for execution",
+                "expected_proposal_revision": 1,
+            },
+        )
+        assert approval.status_code == 200
+        assert approval.json()["approval_status"] == "APPROVED"
+
+        execution = client.post(
+            f"/workflows/{workflow_json['workflow_id']}/execute",
+            json={"actor": "dispatch_operator", "comment": "submit to mock fms", "adapter": "mock_fms"},
+        )
+        assert execution.status_code == 200
+        execution_json = execution.json()
+        assert execution_json["status"] == "SUBMITTED"
+        assert execution_json["workflow_id"] == workflow_json["workflow_id"]
+
+        executions = client.get("/executions")
+        assert executions.status_code == 200
+        execution_records = executions.json()
+        assert len(execution_records) == 1
+        assert execution_records[0]["workflow_id"] == workflow_json["workflow_id"]
+
+        replay = client.post(
+            "/replay/audit",
+            json={
+                "limit": 200,
+                "since_minutes": 10,
+                "operator_role": "dispatcher",
+                "include_diagnose": False,
+                "include_forecast": True,
+                "run_workflow": True,
+            },
+        )
+        assert replay.status_code == 200
+        replay_json = replay.json()
+        assert replay_json["replayed_telemetry_count"] == 2
+        assert replay_json["replayed_alarm_count"] == 1
+        assert replay_json["snapshot"]["summary"]["active_vehicle_count"] == 2
+        assert replay_json["workflow"]["final_status"] == "PASS"
 
     get_settings.cache_clear()

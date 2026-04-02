@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     state_store_path: Path = Field(default=Path("data/state/state_store.json"), alias="STATE_STORE_PATH")
     workflow_store_path: Path = Field(default=Path("data/state/workflows.json"), alias="WORKFLOW_STORE_PATH")
     audit_log_path: Path = Field(default=Path("data/audit/audit.jsonl"), alias="AUDIT_LOG_PATH")
+    execution_log_path: Path = Field(default=Path("data/execution/commands.jsonl"), alias="EXECUTION_LOG_PATH")
     knowledge_base_path: Path = Field(default=Path("docs/knowledge_base"), alias="KNOWLEDGE_BASE_PATH")
     rules_path: Path = Field(default=Path("app/rules/sample_rules.yaml"), alias="RULES_PATH")
     llm_provider: str = Field(default="mock", alias="LLM_PROVIDER")
