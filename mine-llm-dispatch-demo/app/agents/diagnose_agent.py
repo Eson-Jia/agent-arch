@@ -58,7 +58,7 @@ class DiagnoseAgent(BaseAgent):
                     next_check="继续观测 30 分钟并采样排队变化",
                 )
             )
-        response = DiagnoseResponse(
+        draft_response = DiagnoseResponse(
             ts=now_ts(self.timezone_name),
             rca_tree=hypotheses,
             workaround=[
@@ -73,5 +73,22 @@ class DiagnoseAgent(BaseAgent):
             confidence=0.78 if snapshot["alarms"] else 0.65,
             evidence=[*evidence, *doc_evidence],
         )
+        llm_response = self._llm_refine(
+            DiagnoseResponse,
+            system_prompt=(
+                "You are a mine dispatch diagnostics assistant. "
+                "Refine the RCA draft using only the provided alarms, telemetry summary, and SOP hits. "
+                "Do not invent evidence IDs or unsupported causes."
+            ),
+            prompt_context={
+                "snapshot_summary": snapshot["summary"],
+                "active_alarms": snapshot["alarms"],
+                "network_anomalies": high_loss,
+                "sop_hits": doc_evidence,
+                "draft_response": draft_response.model_dump(mode="json"),
+            },
+        )
+        response = llm_response or draft_response
+        response.evidence = self._merge_evidence(response.evidence, draft_response.evidence)
         self._audit(response.model_dump(mode="json"), response.evidence)
         return response

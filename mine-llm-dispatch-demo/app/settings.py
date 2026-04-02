@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     rules_path: Path = Field(default=Path("app/rules/sample_rules.yaml"), alias="RULES_PATH")
     llm_provider: str = Field(default="mock", alias="LLM_PROVIDER")
     llm_api_key: str | None = Field(default=None, alias="LLM_API_KEY")
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    anthropic_auth_token: str | None = Field(default=None, alias="ANTHROPIC_AUTH_TOKEN")
+    anthropic_model: str = Field(default="claude-opus-4-6", alias="ANTHROPIC_MODEL")
+    anthropic_base_url: str | None = Field(default=None, alias="ANTHROPIC_BASE_URL")
+    anthropic_max_tokens: int = Field(default=1500, alias="ANTHROPIC_MAX_TOKENS")
+    anthropic_timeout_seconds: float = Field(default=20.0, alias="ANTHROPIC_TIMEOUT_SECONDS")
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
@@ -26,6 +32,10 @@ class Settings(BaseSettings):
 
     def resolve_path(self, path: Path) -> Path:
         return path if path.is_absolute() else self.project_root / path
+
+    @property
+    def resolved_llm_api_key(self) -> str | None:
+        return self.anthropic_api_key or self.anthropic_auth_token or self.llm_api_key
 
 
 @lru_cache

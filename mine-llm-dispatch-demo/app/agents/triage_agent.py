@@ -72,7 +72,7 @@ class TriageAgent(BaseAgent):
             ],
             follow_up=[hit["doc_id"] for hit in doc_hits],
         )
-        response = TriageResponse(
+        draft_response = TriageResponse(
             ts=now_ts(self.timezone_name),
             top_incidents=incidents,
             triage_actions=actions,
@@ -81,5 +81,21 @@ class TriageAgent(BaseAgent):
             confidence=0.83 if alarms else 0.72,
             evidence=evidence or doc_evidence,
         )
+        llm_response = self._llm_refine(
+            TriageResponse,
+            system_prompt=(
+                "You are a mine dispatch triage assistant. "
+                "Revise the draft response using only the provided alarms, SOP hits, and snapshot data. "
+                "Keep the response operational, concise, and evidence-grounded."
+            ),
+            prompt_context={
+                "snapshot_summary": snapshot["summary"],
+                "alarms": alarms,
+                "sop_hits": doc_hits,
+                "draft_response": draft_response.model_dump(mode="json"),
+            },
+        )
+        response = llm_response or draft_response
+        response.evidence = self._merge_evidence(response.evidence, draft_response.evidence)
         self._audit(response.model_dump(mode="json"), response.evidence)
         return response

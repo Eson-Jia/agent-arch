@@ -9,6 +9,7 @@ from app.agents.dispatch_agent import DispatchAgent
 from app.agents.forecast_agent import ForecastAgent
 from app.agents.gatekeeper_agent import GatekeeperAgent
 from app.agents.triage_agent import TriageAgent
+from app.llm.client import LLMClient, build_llm_client
 from app.models.alarm import SafetyAlarmEvent
 from app.models.proposal import (
     DiagnoseRequest,
@@ -35,6 +36,7 @@ class AppServices:
     state_store: StateStore
     audit_store: AuditStore
     vector_store: VectorStore
+    llm_client: LLMClient
     rule_engine: RuleEngine
     triage_agent: TriageAgent
     dispatch_agent: DispatchAgent
@@ -50,6 +52,7 @@ def build_services(settings: Settings) -> AppServices:
     )
     audit_store = AuditStore(settings.resolve_path(settings.audit_log_path))
     vector_store = VectorStore(settings.resolve_path(settings.vector_store_path))
+    llm_client = build_llm_client(settings)
     rule_engine = RuleEngine(settings.resolve_path(settings.rules_path))
     solver = DispatchSolver(rule_engine)
     return AppServices(
@@ -57,12 +60,13 @@ def build_services(settings: Settings) -> AppServices:
         state_store=state_store,
         audit_store=audit_store,
         vector_store=vector_store,
+        llm_client=llm_client,
         rule_engine=rule_engine,
-        triage_agent=TriageAgent(state_store, audit_store, vector_store, settings.timezone),
-        dispatch_agent=DispatchAgent(state_store, audit_store, vector_store, settings.timezone, solver=solver),
-        gatekeeper_agent=GatekeeperAgent(state_store, audit_store, vector_store, settings.timezone, rule_engine=rule_engine),
-        diagnose_agent=DiagnoseAgent(state_store, audit_store, vector_store, settings.timezone),
-        forecast_agent=ForecastAgent(state_store, audit_store, vector_store, settings.timezone),
+        triage_agent=TriageAgent(state_store, audit_store, vector_store, llm_client, settings.timezone),
+        dispatch_agent=DispatchAgent(state_store, audit_store, vector_store, llm_client, settings.timezone, solver=solver),
+        gatekeeper_agent=GatekeeperAgent(state_store, audit_store, vector_store, llm_client, settings.timezone, rule_engine=rule_engine),
+        diagnose_agent=DiagnoseAgent(state_store, audit_store, vector_store, llm_client, settings.timezone),
+        forecast_agent=ForecastAgent(state_store, audit_store, vector_store, llm_client, settings.timezone),
     )
 
 

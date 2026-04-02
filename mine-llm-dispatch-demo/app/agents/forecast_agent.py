@@ -30,7 +30,7 @@ class ForecastAgent(BaseAgent):
                     congestion_index=round(congestion, 2),
                 )
             )
-        response = ForecastResponse(
+        draft_response = ForecastResponse(
             ts=now_ts(self.timezone_name),
             forecast=forecast,
             what_if=[
@@ -50,5 +50,22 @@ class ForecastAgent(BaseAgent):
             confidence=0.74,
             evidence=[*doc_evidence, *(alarm["alarm_id"] for alarm in snapshot["alarms"])],
         )
+        llm_response = self._llm_refine(
+            ForecastResponse,
+            system_prompt=(
+                "You are a mine dispatch forecasting assistant. "
+                "Refine the forecast draft using only the provided state snapshot and SOP evidence. "
+                "Keep numeric projections plausible and preserve structured JSON output."
+            ),
+            prompt_context={
+                "horizons": horizons,
+                "snapshot_summary": snapshot["summary"],
+                "blocked_segments": snapshot["blocked_segments"],
+                "queue_estimates": snapshot["queue_estimates"],
+                "draft_response": draft_response.model_dump(mode="json"),
+            },
+        )
+        response = llm_response or draft_response
+        response.evidence = self._merge_evidence(response.evidence, draft_response.evidence)
         self._audit(response.model_dump(mode="json"), response.evidence)
         return response

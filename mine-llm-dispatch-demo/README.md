@@ -58,6 +58,12 @@ http://127.0.0.1:8000/docs
 uv run python scripts/seed_demo_data.py
 ```
 
+6. 一次性执行完整冒烟脚本：
+
+```bash
+uv run python scripts/smoke_test.py
+```
+
 ## 默认配置
 
 `.env.example` 关键配置：
@@ -72,8 +78,29 @@ AUDIT_LOG_PATH=data/audit/audit.jsonl
 说明：
 
 - 当前 MVP 使用 `mock` 推理模板，不依赖外部 LLM 即可运行。
+- 支持将 `LLM_PROVIDER` 切到 `anthropic`，用 Claude Opus 原生 API 做分诊、诊断和预测增强。
 - 所有密钥都通过环境变量传入，代码和日志不会写死密钥。
 - 原始视频、个人定位等敏感数据不进入知识库，只保留结构化事件引用。
+
+## 切换到 Claude Opus
+
+如需接入 Claude Opus，可在 `.env` 中设置：
+
+```env
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your-api-key
+# or:
+ANTHROPIC_AUTH_TOKEN=your-api-key
+ANTHROPIC_MODEL=claude-opus-4-6
+ANTHROPIC_BASE_URL=
+```
+
+说明：
+
+- `ANTHROPIC_BASE_URL` 可选，用于接入 Anthropic 兼容的三方供应商网关。
+- `ANTHROPIC_API_KEY` 和 `ANTHROPIC_AUTH_TOKEN` 二选一即可，代码会优先读取 Anthropic 专用变量。
+- 当前 demo 中，`triage`、`diagnose`、`forecast` 会优先调用 Claude；`dispatch` 和 `gatekeeper` 仍保持确定性规则/求解器路径。
+- 如果 `anthropic` 配置不完整、接口报错或返回非法 JSON，系统会自动回退到本地 `mock + rules + solver` 逻辑，不会把接口直接打挂。
 
 ## 主要 API
 
@@ -88,6 +115,14 @@ AUDIT_LOG_PATH=data/audit/audit.jsonl
 - `POST /agents/forecast`
 
 ## Smoke Test
+
+服务启动后，也可以直接运行：
+
+```bash
+uv run python scripts/smoke_test.py
+```
+
+脚本会依次执行 `telemetry -> alarm -> triage -> dispatch -> gatekeeper -> audit`，并在关键结果不符合预期时直接退出报错。
 
 1. 写入遥测：
 
@@ -211,4 +246,5 @@ uv run pytest
 - 每个关键 Agent 输出都带 `evidence` 字段，并写入 `audit.jsonl`
 - Gatekeeper 只做 hard-check，不负责优化
 - 即使没有外部 LLM，仍可通过规则 + 求解器 + mock 模板输出建议
+- Claude Opus 只参与建议与解释生成，不直接下发控制指令
 - 若未来接入外部 LLM，建议保持“建议态 + 人工确认 + 审计留痕”边界不变
