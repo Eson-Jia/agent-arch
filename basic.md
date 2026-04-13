@@ -3,7 +3,7 @@
 
 ## 当前架构
 
-微服务工程集群基于 java8 的 spring boot 框架，基本按照领域拆分成多个 dubbo 服务，例如 device-center,user-center 等。服务之间通过 dubbo 相互调用。
+当前调度管理平台的架构是微服务工程集群基于 java8 的 spring boot 框架，基本按照领域拆分成多个 dubbo 服务，例如 device-center,user-center 等。服务之间通过 dubbo 相互调用。
 dubbo 服务之上，有类似于 dubbo-to-http 的网关服务对外提供 http 服务。
 
 # 思路 && spark
@@ -25,8 +25,13 @@ dubbo 服务之上，有类似于 dubbo-to-http 的网关服务对外提供 http
 # 架构{待完善优化}
 
 - agents
-- operator、knowledge base
+  - multiple-agents
+  - subagents
+- 知识库
+- 操作中心-MCP
+- LLM proxy(router)
 - LLM
+- {待完善补充}
 
 # 设计原则
 
@@ -38,7 +43,13 @@ dubbo 服务之上，有类似于 dubbo-to-http 的网关服务对外提供 http
 
 - 后台巡视 agent,巡视矿卡的运行情况，按需生成操作
 
-## assistant agent
+## assistant agent 主 agent
 
 - 用户助手 agent, 用户交互式触发，针对对话识别用户意图，生成操作。 
+
+## 异常  subAgent
+ 
+## 调度 subAgent
+
+## xx subAgent{待完善补充}
 
