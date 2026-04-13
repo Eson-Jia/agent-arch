@@ -1,14 +1,14 @@
 # 思路文档
 
 
-# 当前架构
+# 当前架构现状
 
-当前调度管理平台的架构是微服务工程集群基于 java8 的 spring boot 框架，基本按照领域拆分成多个 dubbo 服务，例如 device-center,user-center 等。服务之间通过 dubbo 相互调用。
+我司当前调度管理平台的架构是微服务工程集群基于 java8 的 spring boot 框架，基本按照领域拆分成多个 dubbo 服务，例如 device-center,user-center 等。服务之间通过 dubbo 相互调用。
 dubbo 服务之上，有类似于 dubbo-to-http 的网关服务对外提供 http 服务。
 
-# 智能调度 Agent
+# 需求：智能调度 Agent
 
-- 矿山智能调度 Agent,基于 alibaba Ai.
+- 矿山智能调度 Agent,基于 https://github.com/alibaba/spring-ai-alibaba.
 - 拥有多个 subAgent 且可以扩展 Skills
 - 接入知识库且支持 memory
 
@@ -28,10 +28,11 @@ dubbo 服务之上，有类似于 dubbo-to-http 的网关服务对外提供 http
 - 可以利用 hooks 等机制，对执行某些任务时候进行相关权限检测 token 获取等操作，当前实现使用 mock 占位
 - {待补充}
 
-## operator
+## operator-cmp 
+
+### 思路
 
 - 用户的 token 作为执行钥匙，被记录且对其负责。
-- 
 - {待完善}
 
 # 架构{待完善优化}
@@ -39,7 +40,7 @@ dubbo 服务之上，有类似于 dubbo-to-http 的网关服务对外提供 http
 - agents
   - multiple-agents
   - subagents
-- 知识库
+- 知识库、向量数据库
 - 操作中心-MCP
 - LLM proxy(router)
 - LLM
