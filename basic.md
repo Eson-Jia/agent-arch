@@ -1,4 +1,4 @@
-# 思路文档
+# 矿山自动驾驶调度平台方案
 
 
 # 当前架构现状
@@ -46,10 +46,10 @@ dubbo 服务之上，有类似于 dubbo-to-http 的网关服务对外提供 http
 - agents
   - multiple-agents
   - subagents
-- 知识库、向量数据库
+- 知识库、向量数据库（暂定 https://github.com/milvus-io/milvus）
 - 操作中心-MCP
 - LLM proxy(router)
-- LLM
+- LLM （暂定 qwen）
 - {待完善补充}
 
 # 设计原则
