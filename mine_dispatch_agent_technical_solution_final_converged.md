@@ -1,11 +1,5 @@
 # 矿山智能调度 Agent 技术方案
 
-> 最新完整整合版  
-> 适用场景：矿山自动驾驶调度平台、调度员辅助决策、异常分析、知识问答、受控操作执行  
-> 技术主线：Spring AI Alibaba + Spring Boot + Dubbo + MCP + Graph Flow + RAG + operator-mcp + LLM Proxy Router + 人在回路安全闭环  
-> 核心取向：保留完整方案深度，但收敛服务数量和 Agent 数量，避免过度微服务化。
-
----
 
 ## 1. 方案摘要
 
@@ -19,16 +13,7 @@
   -> operator-mcp
   -> 现有 Dubbo 微服务
 ```
-
-本版方案在保留完整系统设计的同时，对服务和 Agent 做明确收敛：
-
-1. **服务不要拆太多。**
-2. **Agent 不要拆太细。**
-3. **能作为应用内模块的，不单独拆服务。**
-4. **能作为 Flow 节点或 Tool 的，不单独做 Agent。**
-5. **只有安全边界、执行边界、模型网关边界强的能力才独立服务。**
-
-最终推荐新增服务只有三个：
+主要服务和 Agent：
 
 | 服务 | 是否独立服务 | 说明 |
 |---|---:|---|
@@ -36,7 +21,7 @@
 | operator-mcp | 是 | 唯一业务操作中心，对上 MCP，对下 Dubbo |
 | llm-proxy-router | 是，但保持很薄 | 统一模型入口，负责多供应商路由、降级、限流、日志脱敏、token 统计 |
 
-其他能力第一阶段不建议独立拆服务：
+主要 service:
 
 | 能力 | 处理方式 |
 |---|---|
@@ -50,11 +35,6 @@
 | Audit Service | 第一阶段合并进 mine-agent-app 和 operator-mcp，各自写审计表 |
 | Event Service | 第一阶段用异常事件表或 Redis Stream，后续再引入 Kafka |
 
-一句话结论：
-
-> 这个系统应该做成“模块化单体 Agent 应用 + 独立操作防火墙 + 薄模型网关”，而不是一开始就拆成一堆微服务和一堆 Agent。
-
----
 
 ## 2. 当前架构与约束
 
@@ -68,9 +48,6 @@
 - 按领域拆分服务，例如：
   - device-center
   - user-center
-  - dispatch-center
-  - vehicle-center
-  - task-center
   - map-center
   - alarm-center
 - Dubbo 服务上层有类似 dubbo-to-http 的网关服务，对外提供 HTTP API。
@@ -316,6 +293,8 @@ flowchart TD
 
 ### 6.2 mine-agent-app 模块职责
 
+第一阶段 mine-agent-app 是一个“模块化单体”，不是一堆微服务。
+
 | 模块 | 职责 | 是否独立服务 |
 |---|---|---:|
 | Agent API 模块 | 对外提供聊天、会话、提案、确认、结果查询接口 | 否 |
@@ -331,10 +310,6 @@ flowchart TD
 | Watcher 模块 | 定时压车检测、异常检测、事件生成 | 否 |
 | Exception Event 模块 | 异常事件入库、去重、触发 Flow | 否 |
 | LLM Client 模块 | 对接 llm-proxy-router | 否 |
-
-结论：
-
-> 第一阶段 mine-agent-app 是一个“模块化单体”，不是一堆微服务。
 
 ---
 
@@ -462,9 +437,9 @@ flowchart TD
 
 ---
 
-## 8. Agent 收敛后的设计
+## 8. Agent 的设计
 
-### 8.1 最终只保留四个核心 Agent
+### 8.1 四个核心 Agent
 
 | Agent | 职责 | 为什么保留 |
 |---|---|---|
@@ -473,7 +448,7 @@ flowchart TD
 | Dispatch Analysis Agent | 调度分析、异常分析、候选方案生成 | 调度业务核心能力 |
 | Safety Gate Agent | 风险评估、合规检查、安全兜底 | 写操作安全闭环必需 |
 
-### 8.2 被合并或降级的 Agent
+### 8.2 合并和降级的 Agent
 
 | 原设计 Agent | 处理方式 | 原因 |
 |---|---|---|
@@ -733,7 +708,7 @@ mine-agent-app
 
 ### 11.1 结论
 
-Agent 体系建议独立使用 PostgreSQL、Redis、Milvus、对象存储。Elasticsearch 和 Kafka 第一阶段可以后置。
+Agent 体系建议独立使用 PostgreSQL、Redis、Milvus、对象存储。
 
 推荐第一阶段中间件收敛如下：
 
@@ -742,7 +717,6 @@ Agent 体系建议独立使用 PostgreSQL、Redis、Milvus、对象存储。Elas
 | PostgreSQL | 一个独立 Agent PostgreSQL 实例，内部用 schema 区分 agent、operator、llm |
 | Redis | 一个独立 Agent Redis 实例，内部用 key prefix 区分 agent 和 operator |
 | Milvus | 独立实例或独立 collection |
-| Elasticsearch | 第一阶段可选，能不用就先不用 |
 | Kafka | 第一阶段可选，异常事件可先用数据库表或 Redis Stream |
 | Object Storage | 存储文档原文、解析结果和附件 |
 
@@ -1092,16 +1066,16 @@ idempotencyKey = hash(proposalId + operationType + targetObjectIds + approvedVer
 
 ### 15.1 知识库内容
 
-| 知识类型 | 示例 |
-|---|---|
+| 知识类型 | 示例                      |
+|---|-------------------------|
 | 接口文档 | Dubbo 接口、HTTP 网关接口、字段说明 |
-| 调度规则 | 车辆优先级、装载区规则、卸载区规则 |
-| SOP | 车辆离线、压车、通信异常、道路拥堵处理 |
-| 设备文档 | 矿卡、挖机、基站、调度终端 |
-| 地图知识 | 道路、坡道、装载点、卸载点、禁行区 |
-| 历史案例 | 异常处置记录、事故复盘 |
-| 安全文档 | 高风险操作约束、审批制度 |
-| 系统手册 | 调度平台使用说明、运维手册 |
+| 调度规则 | 车辆优先级、装载区规则、卸载区规则       |
+| SOP | 车辆离线、压车、通信异常、道路拥堵处理、异常报警处理  |
+| 设备文档 | 矿卡、挖机、基站、调度终端           |
+| 地图知识 | 道路、坡道、装载点、卸载点、禁行区       |
+| 历史案例 | 异常处置记录、事故复盘             |
+| 安全文档 | 高风险操作约束、审批制度            |
+| 系统手册 | 调度平台使用说明、运维手册           |
 
 ### 15.2 RAG 流程
 
@@ -1269,119 +1243,6 @@ flowchart TD
 | FlowAgent | 固定调度流程、安全流程、回滚流程 |
 | ReactAgent | 专业子 Agent 局部工具调用 |
 
-### 17.2 工程结构
-
-服务级工程：
-
-```text
-mine-dispatch-agent-system
-├── mine-agent-app
-├── operator-mcp
-├── llm-proxy-router
-└── common-contracts
-```
-
-mine-agent-app 内部包结构：
-
-```text
-mine-agent-app
-├── api
-│   ├── ChatController
-│   ├── ProposalController
-│   └── EventController
-├── orchestrator
-│   ├── AssistantOrchestrator
-│   └── IntentClassifier
-├── flow
-│   ├── ReadOnlyQueryFlow
-│   ├── KnowledgeQaFlow
-│   ├── DispatchAnalysisFlow
-│   ├── ProposalFlow
-│   └── ControlledOperationFlow
-├── agent
-│   ├── KnowledgeAgent
-│   ├── DispatchAnalysisAgent
-│   └── SafetyGateAgent
-├── rag
-│   ├── DocumentIngestionService
-│   ├── RetrieverService
-│   ├── RerankService
-│   └── CitationService
-├── memory
-│   ├── SessionMemoryService
-│   ├── UserPreferenceMemoryService
-│   └── BusinessMemoryService
-├── proposal
-│   ├── ProposalService
-│   ├── ProposalStateMachine
-│   └── ApprovalService
-├── mcp
-│   ├── McpClientService
-│   └── ToolCallFacade
-├── watcher
-│   ├── CongestionDetector
-│   ├── WatcherScheduler
-│   └── ExceptionEventService
-├── llm
-│   ├── LlmClient
-│   └── ModelCapabilitySelector
-└── persistence
-    ├── entity
-    ├── repository
-    └── migration
-```
-
-operator-mcp 内部包结构：
-
-```text
-operator-mcp
-├── mcp
-│   ├── McpServerEndpoint
-│   └── ToolDispatcher
-├── registry
-│   ├── ToolRegistryService
-│   └── ToolSchemaService
-├── security
-│   ├── PermissionValidator
-│   ├── TokenValidator
-│   └── ScopeValidator
-├── idempotency
-│   └── IdempotencyService
-├── audit
-│   └── OperationAuditService
-├── governance
-│   ├── RateLimiter
-│   ├── CircuitBreaker
-│   └── TimeoutPolicy
-├── dubbo
-│   ├── DeviceCenterAdapter
-│   ├── DispatchCenterAdapter
-│   ├── VehicleCenterAdapter
-│   ├── TaskCenterAdapter
-│   ├── MapCenterAdapter
-│   └── AlarmCenterAdapter
-└── persistence
-    ├── entity
-    ├── repository
-    └── migration
-```
-
-### 17.3 Java 版本策略
-
-| 模块 | 建议 JDK | 原因 |
-|---|---:|---|
-| 现有 Dubbo 服务 | Java8 | 保持稳定 |
-| mine-agent-app | Java17+ | 适配 Spring AI Alibaba 和现代 AI 工程生态 |
-| operator-mcp | Java17+ 优先 | MCP 和 Agent 生态更适配 |
-| Dubbo Adapter | Java8 或 Java17 双方案 | 取决于 Dubbo 版本兼容性 |
-| llm-proxy-router | Java17+ 或 Go | 薄网关，语言可按团队能力选择 |
-
-务实建议：
-
-> 不要把 Spring AI Alibaba 强行塞进老 Java8 调度服务里。正确做法是新增独立 Agent 服务，通过 operator-mcp 和 Dubbo Adapter 与老系统交互。
-
----
-
 ## 18. 与现有 Dubbo 微服务集成
 
 ### 18.1 防腐层设计
@@ -1511,22 +1372,8 @@ flowchart LR
 | comment | 审批备注 |
 | created_at | 创建时间 |
 
-### 19.7 agent_safety_assessment
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| assessment_id | 评估 ID |
-| proposal_id | 提案 ID |
-| risk_level | 风险等级 |
-| passed | 是否通过 |
-| risk_items | 风险项 JSON |
-| required_approval_level | 审批级别 |
-| model_output | 模型输出 |
-| rule_output | 规则输出 |
-| created_at | 创建时间 |
-
-### 19.8 agent_exception_event
+### 19.7 agent_exception_event
 
 | 字段 | 说明 |
 |---|---|
@@ -1541,7 +1388,7 @@ flowchart LR
 | status | 状态 |
 | detected_at | 检测时间 |
 
-### 19.9 agent_knowledge_feedback
+### 19.8 agent_knowledge_feedback
 
 | 字段 | 说明 |
 |---|---|
@@ -1555,7 +1402,7 @@ flowchart LR
 | reviewer_id | 审核人 |
 | created_at | 创建时间 |
 
-### 19.10 operator_tool_registry
+### 19.9 operator_tool_registry
 
 | 字段 | 说明 |
 |---|---|
@@ -1569,7 +1416,7 @@ flowchart LR
 | version | 工具版本 |
 | created_at | 创建时间 |
 
-### 19.11 operator_tool_call_log
+### 19.10 operator_tool_call_log
 
 | 字段 | 说明 |
 |---|---|
@@ -1602,20 +1449,7 @@ flowchart LR
 | latency_ms | 耗时 |
 | created_at | 创建时间 |
 
-### 19.13 operator_idempotency_record
-
-| 字段 | 说明 |
-|---|---|
-| idempotency_key | 幂等键 |
-| proposal_id | 提案 ID |
-| operation_type | 操作类型 |
-| request_hash | 请求参数摘要 |
-| status | EXECUTING、SUCCESS、FAILED |
-| result_json | 执行结果 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-
-### 19.14 llm_call_log
+### 19.13 llm_call_log
 
 | 字段 | 说明 |
 |---|---|
@@ -1772,20 +1606,6 @@ flowchart TD
 
 ---
 
-## 21. 多实例一致性要求
-
-| 场景 | 一致性要求 | 实现 |
-|---|---|---|
-| token 消费 | 强一致 | Redis Lua 原子消费 |
-| 提案状态流转 | 强一致 | PostgreSQL 乐观锁或行锁 |
-| 审计日志 | 最终一致可接受 | 失败重试 |
-| 只读查询 | 最终一致可接受 | Dubbo 查询 |
-| RAG 检索 | 最终一致可接受 | 异步索引 |
-| 异常事件去重 | 强一致 | eventId 唯一索引 |
-| 写操作执行 | 强一致 | 幂等键 + 状态机 |
-| Graph 执行恢复 | 中等一致 | checkpoint 落库 |
-
----
 
 ## 22. 最小可落地版本
 
@@ -1803,7 +1623,7 @@ Milvus
 Object Storage
 ```
 
-Elasticsearch、Kafka、独立审计服务、独立知识库服务、独立 Memory 服务都可以后置。
+Kafka、独立审计服务、独立知识库服务、独立 Memory 服务都可以后置。
 
 ### 22.2 最小 Agent 清单
 
@@ -1834,85 +1654,7 @@ Exception Agent、Watchdog Agent、Operator Agent 都不需要第一阶段独立
 | dispatch.stopVehicle | 极高风险写 | 暂不开放 |
 | map.closeRoadSegment | 极高风险写 | 暂不开放 |
 
-### 22.4 第一阶段不要做
-
-- 不做完全自治调度。
-- 不做高风险自动执行。
-- 不让 LLM 直接访问数据库。
-- 不让 LLM 直接调用 Dubbo。
-- 不一次性开放所有接口。
-- 不做复杂多角色审批。
-- 不做全量历史数据智能分析。
-- 不做无引用来源的知识问答。
-- 不开放生产网络访问的 Python 代码执行。
-- 不把 Agent 中间件和生产业务中间件混用。
-
-### 22.5 Python 代码执行边界
-
-草稿中提到支持 Python 代码执行。建议第一阶段谨慎处理：
-
-| 场景 | 建议 |
-|---|---|
-| 调度生产操作 | 禁止 |
-| 数据分析离线任务 | 可在沙箱中试点 |
-| 访问生产网络 | 禁止 |
-| 访问生产数据库 | 禁止 |
-| 访问用户上传文件 | 可控授权 |
-| 执行时间 | 必须限制 |
-| 文件系统 | 临时目录隔离 |
-| 审计 | 必须记录代码和输出摘要 |
-
----
-
-## 23. 服务合并与后续拆分策略
-
-### 23.1 当前不建议拆的服务
-
-| 能力 | 不拆原因 |
-|---|---|
-| RAG 服务 | 与 Agent 上下文耦合强，第一阶段 QPS 不高 |
-| Memory 服务 | 与会话强绑定，独立拆分增加复杂度 |
-| Proposal 服务 | 与 Flow 状态机强绑定 |
-| Safety 服务 | 与 Proposal 和用户确认强绑定 |
-| Exception 服务 | 第一阶段事件量有限 |
-| Audit 服务 | 可先库表化，后续再汇聚到 ES 或日志平台 |
-
-### 23.2 未来可以拆的条件
-
-| 服务 | 拆分触发条件 |
-|---|---|
-| agent-rag-service | 文档量大、检索 QPS 高、需要独立扩容 |
-| memory-service | 多个 Agent 应用共享长期记忆 |
-| proposal-service | 多系统共享提案审批流 |
-| audit-service | 审计量大，需要独立检索和合规报表 |
-| exception-event-service | 事件流规模扩大，需要 Kafka 和消费组 |
-| llm-proxy-router | 如果已有企业统一模型网关，可以直接复用 |
-
-### 23.3 拆分原则
-
-1. 先模块化，后微服务化。
-2. 有独立扩容需求再拆。
-3. 有明确安全边界再拆。
-4. 有跨系统复用价值再拆。
-5. 不为了架构好看而拆。
-
----
-
-## 24. 分阶段实施路线
-
-| 阶段 | 目标 | 交付物 | 技术重点 | 验收标准 |
-|---|---|---|---|---|
-| Phase 0 | 技术验证 | Spring AI Alibaba demo、MCP demo、RAG demo、LLM Proxy demo | 验证 Chat、RAG、Tool Calling、MCP | 能完成问答和只读工具调用 |
-| Phase 1 | 只读问答 | 知识库、接口文档查询、车辆状态查询 | RAG、只读工具、审计 | 答案有来源，只读工具可审计 |
-| Phase 2 | 提案生成 | Proposal 模型、Safety Gate、用户确认页 | Graph Flow、结构化输出、风险评估 | 能生成可追溯提案 |
-| Phase 3 | 有限写操作 | operator-mcp 写操作、token 校验 | token、幂等、审计 | 用户确认后才能执行 |
-| Phase 4 | 异常检测联动 | 压车检测 mock、Dispatch Analysis Flow | 事件驱动、异常分析 | 异常可生成处置建议 |
-| Phase 5 | 半自动调度辅助 | 更多调度工具、更多 SOP、更多规则 | 调度策略、回滚机制 | 人在回路下辅助调度 |
-| Phase 6 | 多角色审批 | 审批流、策略引擎、风控规则 | 审批治理、策略引擎 | 高风险操作可治理 |
-
----
-
-## 25. 技术风险与规避措施
+## 23. 技术风险与规避措施
 
 | 风险 | 规避策略 |
 |---|---|
@@ -1933,30 +1675,7 @@ Exception Agent、Watchdog Agent、Operator Agent 都不需要第一阶段独立
 
 ---
 
-## 26. 原草稿需要修正的点
-
-| 原草稿问题 | 建议 |
-|---|---|
-| operator-cmp 命名不一致 | 统一为 operator-mcp |
-| 有状态服务描述不清晰 | 状态应集中在 Proposal、Token、Audit、Idempotency，不散落在服务内存 |
-| SubAgent 边界不清 | 收敛为 Assistant、Knowledge、Dispatch Analysis、Safety Gate |
-| Skills 描述偏泛 | Skills 应落到 Tool Registry 和 MCP Tool |
-| 安全门位置不明确 | 写操作前必须强制 Safety Gate |
-| token 流程不完整 | 补充 scope、nonce、expire、used 校验 |
-| 知识库未区分类型 | 区分静态知识、实时业务状态、历史事件 |
-| 压车检测与 AI 关系不清 | 算法检测不依赖 LLM，LLM 只做解释和提案 |
-| Java8 兼容性未展开 | Agent 新服务独立 JDK17+，老服务通过 Adapter 对接 |
-| ReAct 和 Graph 未决策 | 顶层 Graph Flow，叶子节点 ReactAgent |
-| LLM 单点问题未解决 | 新增轻量 LLM Proxy Router |
-| 生产隔离不足 | Agent 中间件独立部署 |
-| 多实例处理不足 | 实例无状态，业务状态外置 |
-| 服务拆分过多 | 收敛为 mine-agent-app、operator-mcp、llm-proxy-router |
-| Agent 过多 | Watchdog、Exception、Operator 不再独立成 Agent |
-| 插件化原则不够明确 | Agent 必须是完全独立旁路插件，故障后不影响生产运营 |
-
----
-
-## 27. 最终架构原则
+## 24. 最终架构原则
 
 ```text
 服务架构：
@@ -1992,7 +1711,3 @@ mine-agent-app：
 最高优先级原则：
 Agent 是完全独立的旁路插件，原有调度系统零依赖，Agent 故障后生产运营不受影响。
 ```
-
-最终判断：
-
-> 矿山调度 Agent 的正确方向不是让一个大模型自由调度矿车，而是用 Graph 固化安全流程，用少量必要 Agent 辅助分析，用 operator-mcp 受控执行，用插件化旁路原则保证生产系统不被拖垮。
