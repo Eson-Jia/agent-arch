@@ -6,7 +6,7 @@
 我司当前调度管理平台的架构是微服务工程集群基于 java8 的 spring boot 框架，基本按照领域拆分成多个 dubbo 服务，例如 device-center,user-center 等。服务之间通过 dubbo 相互调用。
 dubbo 服务之上，有类似于 dubbo-to-http 的网关服务对外提供 http 服务。
 
-# 需求：智能调度 Agent
+# 智能调度 Agent
 
 - 矿山智能调度 Agent,基于 https://github.com/alibaba/spring-ai-alibaba.
 - 拥有多个 subAgent 且可以扩展 Skills
@@ -54,9 +54,16 @@ dubbo 服务之上，有类似于 dubbo-to-http 的网关服务对外提供 http
 
 # 设计原则
 
+1. 绝对不用能像当前调度系统的运行
+2. 所有接口都要通过 operator-mcp 服务封装，且逐步有限开放接口。不直接操作相关中间件
+3. 按照 alibaba-ai 的最佳实践
+
 ## 安全域
 
-# 实现
+1. operator-mcp 调用 dubbo 接口都有令牌桶限流和异常直接降级
+2. 写操作都要有用户授权的 token 且具有一次性
+
+# 相关 agent 模块
 
 ## assistant agent 主 agent
 
