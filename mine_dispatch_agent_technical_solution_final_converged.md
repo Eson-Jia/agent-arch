@@ -172,7 +172,6 @@ flowchart TD
 - 异常自动发现。
 - 调度提案自动生成。
 - 半自动辅助调度。
-- 多角色审批。
 - 策略引擎与 Agent 协同。
 - 高精地图感知调度分析。
 - 人在回路的受控自治调度。
@@ -880,7 +879,6 @@ Spring Scheduler
 | 低风险写 | 标记建议已读 | 是 | 是 | 是 |
 | 中风险写 | 调整任务优先级 | 是 | 是 | 是 |
 | 高风险写 | 车辆任务重分配 | 是 | 是 | 是 |
-| 极高风险 | 停车、封路、批量调度 | 是 | 多角色审批 | 是 |
 
 ### 13.2 写操作安全链路
 
@@ -1362,15 +1360,15 @@ flowchart LR
 
 ### 19.6 agent_proposal_approval
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| proposal_id | 提案 ID |
-| approver_id | 审批人 |
-| approval_type | 用户确认、二次确认、多角色审批 |
-| decision | 通过或拒绝 |
-| comment | 审批备注 |
-| created_at | 创建时间 |
+| 字段 | 说明                         |
+|---|----------------------------|
+| id | 主键                         |
+| proposal_id | 提案 ID                      |
+| approver_id | 审批人                        |
+| approval_type | 用户确认、二次确认或者强制确认（强制阅读提案多少秒） |
+| decision | 通过或拒绝                      |
+| comment | 审批备注                       |
+| created_at | 创建时间                       |
 
 
 ### 19.7 agent_exception_event
